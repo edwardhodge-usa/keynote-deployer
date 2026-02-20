@@ -230,22 +230,31 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
   document.getElementById('btnPrev').addEventListener('click',doPrev);
 
   var reRenderTimers=[];
+  var pollingInterval=null;
 
   function triggerReRenders(){
-    // Clear any pending re-renders
+    // Clear any pending re-renders and polling
     reRenderTimers.forEach(function(t){clearTimeout(t)});
     reRenderTimers=[];
+    if(pollingInterval){clearInterval(pollingInterval);pollingInterval=null;}
 
-    // Trigger multiple resize events at aggressive intervals
-    // Immediate render for instant transitions
+    // Immediate resize
     window.dispatchEvent(new Event('resize'));
 
-    // Fast intervals to catch slides with no transition
+    // Aggressive intervals
     reRenderTimers.push(setTimeout(function(){window.dispatchEvent(new Event('resize'))},20));
     reRenderTimers.push(setTimeout(function(){window.dispatchEvent(new Event('resize'))},50));
     reRenderTimers.push(setTimeout(function(){window.dispatchEvent(new Event('resize'))},100));
     reRenderTimers.push(setTimeout(function(){window.dispatchEvent(new Event('resize'))},200));
     reRenderTimers.push(setTimeout(function(){window.dispatchEvent(new Event('resize'))},400));
+
+    // Continuous polling for 2 seconds to ensure we catch the render
+    var pollCount=0;
+    pollingInterval=setInterval(function(){
+      window.dispatchEvent(new Event('resize'));
+      pollCount++;
+      if(pollCount>=20){clearInterval(pollingInterval);pollingInterval=null;}
+    },100);
   }
 
   // Trigger on hashchange (slide transitions)
