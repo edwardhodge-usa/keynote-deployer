@@ -126,7 +126,7 @@ export async function deployToVercel(
           VERCEL_PROJECT_ID: project.id,
         },
         maxBuffer: 10 * 1024 * 1024, // 10MB buffer for output
-        timeout: 120000, // 2 minute timeout
+        timeout: 600000, // 10 minute timeout for large deployments
       }
     )
 
