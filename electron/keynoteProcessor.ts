@@ -229,12 +229,21 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
   document.getElementById('btnNext').addEventListener('click',doNext);
   document.getElementById('btnPrev').addEventListener('click',doPrev);
 
-  var reRenderTimer=null;
+  var reRenderTimers=[];
   window.addEventListener('hashchange',function(){
-    clearTimeout(reRenderTimer);
-    reRenderTimer=setTimeout(function(){
-      window.dispatchEvent(new Event('resize'));
-    },1800);
+    // Clear any pending re-renders
+    reRenderTimers.forEach(function(t){clearTimeout(t)});
+    reRenderTimers=[];
+
+    // Trigger multiple resize events at different intervals to ensure high-res rendering
+    // Immediate render
+    window.dispatchEvent(new Event('resize'));
+
+    // Additional renders at strategic intervals to catch Keynote's render cycle
+    reRenderTimers.push(setTimeout(function(){window.dispatchEvent(new Event('resize'))},100));
+    reRenderTimers.push(setTimeout(function(){window.dispatchEvent(new Event('resize'))},300));
+    reRenderTimers.push(setTimeout(function(){window.dispatchEvent(new Event('resize'))},600));
+    reRenderTimers.push(setTimeout(function(){window.dispatchEvent(new Event('resize'))},1200));
   });
 
   window.addEventListener('hashchange',updateCounter);
