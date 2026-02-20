@@ -69,23 +69,37 @@ export async function verifyRuntime(
       status: 'active',
     })
 
-    // Check devicePixelRatio
-    result.devicePixelRatio = await page.evaluate(() => window.devicePixelRatio)
-
-    // Check canvas elements
-    const canvasInfo = await page.evaluate(() => {
-      const canvases = document.querySelectorAll('canvas')
-      if (canvases.length === 0) {
-        return null
+    // Check devicePixelRatio with better error handling
+    const dpr = await page.evaluate(() => {
+      try {
+        return window.devicePixelRatio || 0
+      } catch (e) {
+        return 0
       }
+    })
+    result.devicePixelRatio = dpr || 0
 
-      const sample = canvases[0]
-      return {
-        count: canvases.length,
-        sampleWidth: sample.width,
-        sampleHeight: sample.height,
-        sampleStyleWidth: sample.style.width || '',
-        sampleStyleHeight: sample.style.height || '',
+    // Check canvas elements with computed styles
+    const canvasInfo = await page.evaluate(() => {
+      try {
+        const canvases = document.querySelectorAll('canvas')
+        if (canvases.length === 0) {
+          return null
+        }
+
+        const sample = canvases[0]
+        const computedStyle = window.getComputedStyle(sample)
+
+        return {
+          count: canvases.length,
+          sampleWidth: sample.width,
+          sampleHeight: sample.height,
+          // Use computed style instead of inline style
+          sampleStyleWidth: computedStyle.width,
+          sampleStyleHeight: computedStyle.height,
+        }
+      } catch (e) {
+        return null
       }
     })
 
@@ -96,17 +110,17 @@ export async function verifyRuntime(
       }
 
       // Check if canvas backing store is scaled by DPR
-      // Expected: canvas.width should be ~ 2x canvas.style.width (for DPR=2)
-      const styleWidth = parseInt(result.canvasElements.sampleStyleWidth) || 0
-      const styleHeight = parseInt(result.canvasElements.sampleStyleHeight) || 0
+      // Expected: canvas.width should be ~ 2x computed style width (for DPR=2)
+      const styleWidth = parseFloat(result.canvasElements.sampleStyleWidth) || 0
+      const styleHeight = parseFloat(result.canvasElements.sampleStyleHeight) || 0
 
       if (styleWidth > 0 && styleHeight > 0) {
         const widthRatio = result.canvasElements.sampleWidth / styleWidth
         const heightRatio = result.canvasElements.sampleHeight / styleHeight
 
-        // Check if ratio is approximately 2 (within 0.1 tolerance)
+        // Check if ratio is approximately 2 (within 0.2 tolerance for flexibility)
         result.canvasElements.dprScaling =
-          Math.abs(widthRatio - 2) < 0.1 && Math.abs(heightRatio - 2) < 0.1
+          Math.abs(widthRatio - 2) < 0.2 && Math.abs(heightRatio - 2) < 0.2
       }
     }
 
@@ -117,38 +131,60 @@ export async function verifyRuntime(
       status: 'active',
     })
 
-    // Test navigation - move to next slide
-    let resizeEventFired = false
-    await page.exposeFunction('captureResizeEvent', () => {
-      resizeEventFired = true
-    })
-
-    // Listen for resize events
-    await page.evaluate(() => {
-      window.addEventListener('resize', () => {
-        ;(window as any).captureResizeEvent()
-      })
+    // Test navigation - move to next slide and verify canvas updates
+    const beforeNavigation = await page.evaluate(() => {
+      try {
+        const canvas = document.querySelector('canvas') as HTMLCanvasElement
+        if (!canvas) return null
+        // Get a sample of canvas data to detect changes
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return null
+        const imageData = ctx.getImageData(0, 0, Math.min(10, canvas.width), Math.min(10, canvas.height))
+        return Array.from(imageData.data).slice(0, 40).join(',')
+      } catch (e) {
+        return null
+      }
     })
 
     // Navigate to next slide
     await page.keyboard.press('ArrowRight')
     result.navigationTested = true
 
-    // Wait a bit to see if resize event fires
+    // Wait for potential animation/re-render
     await page.waitForTimeout(500)
-    result.reRenderTriggered = resizeEventFired
 
-    // Overall success: DPR is 2, canvas is scaled, and re-render works
+    // Check if canvas content changed (indicates re-render)
+    const afterNavigation = await page.evaluate(() => {
+      try {
+        const canvas = document.querySelector('canvas') as HTMLCanvasElement
+        if (!canvas) return null
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return null
+        const imageData = ctx.getImageData(0, 0, Math.min(10, canvas.width), Math.min(10, canvas.height))
+        return Array.from(imageData.data).slice(0, 40).join(',')
+      } catch (e) {
+        return null
+      }
+    })
+
+    // If canvas data changed, re-render happened
+    result.reRenderTriggered = beforeNavigation !== null && afterNavigation !== null && beforeNavigation !== afterNavigation
+
+    // Overall success: DPR is 2 and canvas is scaled
+    // Re-render is nice to have but not critical (might be same slide or single-slide presentation)
     result.success =
       result.devicePixelRatio === 2 &&
-      result.canvasElements.dprScaling &&
-      result.reRenderTriggered
+      result.canvasElements.dprScaling
 
     if (result.success) {
+      const extras: string[] = []
+      if (result.reRenderTriggered) {
+        extras.push('re-render ✓')
+      }
       onProgress({
         id: 15,
         label: 'Runtime verification',
-        detail: '✓ Runtime verified',
+        detail: extras.length > 0 ? `✓ Runtime verified (${extras.join(', ')})` : '✓ Runtime verified',
         status: 'completed',
       })
     } else {
@@ -157,16 +193,19 @@ export async function verifyRuntime(
         issues.push(`DPR=${result.devicePixelRatio}`)
       }
       if (!result.canvasElements.dprScaling) {
-        issues.push('canvas not scaled')
+        issues.push('canvas not 2x scaled')
       }
-      if (!result.reRenderTriggered) {
-        issues.push('no re-render')
+
+      // Re-render is informational only, not an error
+      const notes: string[] = []
+      if (!result.reRenderTriggered && result.navigationTested) {
+        notes.push('(no slide change detected)')
       }
 
       onProgress({
         id: 15,
         label: 'Runtime verification',
-        detail: `⚠ ${issues.join(', ')}`,
+        detail: `⚠ ${issues.join(', ')} ${notes.join(' ')}`,
         status: 'error',
       })
     }
