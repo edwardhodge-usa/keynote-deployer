@@ -23,27 +23,27 @@ const FIXES: Fix[] = [
   {
     name: 'Viewport A (sparkle/particle effects)',
     search: 'Q.viewport(0,0,Q.viewportWidth,Q.viewportHeight)',
-    replace: 'Q.viewport(0,0,Q.viewportWidth*(window.devicePixelRatio||2),Q.viewportHeight*(window.devicePixelRatio||2))',
+    replace: 'Q.viewport(0,0,Q.viewportWidth*Math.max(window.devicePixelRatio||1,2),Q.viewportHeight*Math.max(window.devicePixelRatio||1,2))',
   },
   {
     name: 'Viewport B (firework effects)',
     search: 'C.viewport(0,0,C.viewportWidth,C.viewportHeight)',
-    replace: 'C.viewport(0,0,C.viewportWidth*(window.devicePixelRatio||2),C.viewportHeight*(window.devicePixelRatio||2))',
+    replace: 'C.viewport(0,0,C.viewportWidth*Math.max(window.devicePixelRatio||1,2),C.viewportHeight*Math.max(window.devicePixelRatio||1,2))',
   },
   {
     name: 'Resize viewport DPR scaling',
     search: 'B.viewport(0,0,g,C),B.viewportWidth=g,B.viewportHeight=C',
-    replace: 'B.viewport(0,0,g*(window.devicePixelRatio||2),C*(window.devicePixelRatio||2)),B.viewportWidth=g,B.viewportHeight=C',
+    replace: 'B.viewport(0,0,g*Math.max(window.devicePixelRatio||1,2),C*Math.max(window.devicePixelRatio||1,2)),B.viewportWidth=g,B.viewportHeight=C',
   },
   {
     name: 'Constructor viewport division',
     search: 'g.viewportWidth=B.width,g.viewportHeight=B.height',
-    replace: 'g.viewportWidth=B.width/(window.devicePixelRatio||2),g.viewportHeight=B.height/(window.devicePixelRatio||2)',
+    replace: 'g.viewportWidth=B.width/Math.max(window.devicePixelRatio||1,2),g.viewportHeight=B.height/Math.max(window.devicePixelRatio||1,2)',
   },
   {
     name: 'Canvas DPR backing store',
     search: 'B.width=UC.script.slideWidth,B.height=UC.script.slideHeight',
-    replace: 'B.width=UC.script.slideWidth*(window.devicePixelRatio||2),B.height=UC.script.slideHeight*(window.devicePixelRatio||2),B.style.width=UC.script.slideWidth+"px",B.style.height=UC.script.slideHeight+"px"',
+    replace: 'B.width=UC.script.slideWidth*Math.max(window.devicePixelRatio||1,2),B.height=UC.script.slideHeight*Math.max(window.devicePixelRatio||1,2),B.style.width=UC.script.slideWidth+"px",B.style.height=UC.script.slideHeight+"px"',
   },
 ]
 
