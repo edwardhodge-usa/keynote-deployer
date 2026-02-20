@@ -152,8 +152,7 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
     setSteps(INITIAL_STEPS)
     setResult(null)
     setError('')
-    setResult(null)
-    setError('')
+    onProjectUsed() // Clear selectedProject in parent state
   }
 
   const framerEmbed = result?.url

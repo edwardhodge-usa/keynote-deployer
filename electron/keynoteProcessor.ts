@@ -129,7 +129,7 @@ export async function processKeynoteFolder(
   // Verify write succeeded by reading back
   const verifyContent = await fs.readFile(mainJsPath, 'utf-8')
   if (verifyContent !== content) {
-    errors.push('File write verification failed - content mismatch')
+    throw new Error('File write verification failed - content mismatch')
   }
 
   // Step 11: Generate index.html
