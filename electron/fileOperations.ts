@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   vercelTeamId: 'team_E1wAzl9zyAPrlGzyjmcXNuxd',
   theme: 'system',
   autoCopyUrl: true,
+  enableRuntimeVerification: false,
   projectNamePrefix: '',
   lastFolderPath: '',
 }

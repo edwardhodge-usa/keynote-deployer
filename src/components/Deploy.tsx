@@ -9,7 +9,7 @@ interface DeployProps {
 
 type Phase = 'select' | 'confirm' | 'processing' | 'complete' | 'error'
 
-const INITIAL_STEPS: ProcessingStep[] = Array.from({ length: 15 }, (_, i) => ({
+const INITIAL_STEPS: ProcessingStep[] = Array.from({ length: 16 }, (_, i) => ({
   id: i + 1,
   label: [
     'Validate folder',
@@ -26,6 +26,7 @@ const INITIAL_STEPS: ProcessingStep[] = Array.from({ length: 15 }, (_, i) => ({
     'Vercel project',
     'Deploy',
     'Verify deployment',
+    'Runtime verification',
     'Complete',
   ][i],
   detail: '',
@@ -326,6 +327,61 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
                 {!result.verification.indexHtmlVerified && (
                   <div className="mt-3 text-xs text-amber-600 dark:text-amber-400">
                     ⚠ index.html verification failed
+                  </div>
+                )}
+
+                {/* Runtime Verification Results */}
+                {result.verification.runtime && (
+                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <h4 className="text-xs font-semibold mb-2 text-gray-600 dark:text-gray-400">
+                      Runtime Testing (Browser Automation)
+                    </h4>
+
+                    {result.verification.runtime.success ? (
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-xs mb-2">
+                        <span>✓</span>
+                        <span>All runtime checks passed</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-xs mb-2">
+                        <span>⚠</span>
+                        <span>Some runtime issues detected</span>
+                      </div>
+                    )}
+
+                    <div className="space-y-1 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className={result.verification.runtime.devicePixelRatio === 2 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}>
+                          {result.verification.runtime.devicePixelRatio === 2 ? '✓' : '⚠'}
+                        </span>
+                        <span className="text-gray-600 dark:text-gray-400">
+                          Device Pixel Ratio: {result.verification.runtime.devicePixelRatio}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className={result.verification.runtime.canvasElements.dprScaling ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}>
+                          {result.verification.runtime.canvasElements.dprScaling ? '✓' : '⚠'}
+                        </span>
+                        <span className="text-gray-600 dark:text-gray-400">
+                          Canvas DPR Scaling: {result.verification.runtime.canvasElements.dprScaling ? 'Active' : 'Not detected'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className={result.verification.runtime.reRenderTriggered ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}>
+                          {result.verification.runtime.reRenderTriggered ? '✓' : '⚠'}
+                        </span>
+                        <span className="text-gray-600 dark:text-gray-400">
+                          Re-render on navigation: {result.verification.runtime.reRenderTriggered ? 'Working' : 'Not detected'}
+                        </span>
+                      </div>
+
+                      <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800 text-xxs text-gray-500">
+                        Canvas: {result.verification.runtime.canvasElements.sampleWidth}×{result.verification.runtime.canvasElements.sampleHeight}
+                        {result.verification.runtime.canvasElements.sampleStyleWidth && ` (styled ${result.verification.runtime.canvasElements.sampleStyleWidth}×${result.verification.runtime.canvasElements.sampleStyleHeight})`}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

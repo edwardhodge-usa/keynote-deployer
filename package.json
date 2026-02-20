@@ -13,6 +13,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "puppeteer": "^24.37.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
@@ -37,7 +38,10 @@
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "assets/icon.icns",
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "darkModeSupport": true
     },
     "files": [

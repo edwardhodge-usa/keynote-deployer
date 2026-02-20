@@ -4,6 +4,7 @@ import { loadSettings, saveSettings, loadHistory, addHistoryEntry, validateKeyno
 import { processKeynoteFolder } from './keynoteProcessor'
 import { deployToVercel } from './vercelDeployer'
 import { verifyDeployment } from './verifier'
+import { verifyRuntime } from './runtimeVerifier'
 import type { ProcessRequest, HistoryEntry, ProcessingStep } from '../src/types/index'
 
 let mainWindow: BrowserWindow | null = null
@@ -142,8 +143,17 @@ ipcMain.handle('process-and-deploy', async (event, request: ProcessRequest) => {
     // Step 14: Verify deployment
     const verificationResult = await verifyDeployment(deployResult.url, sendProgress)
 
-    // Step 15: Complete
-    sendProgress({ id: 15, label: 'Complete', detail: deployResult.url, status: 'completed' })
+    // Step 15: Runtime verification (if enabled)
+    if (settings.enableRuntimeVerification) {
+      const runtimeResult = await verifyRuntime(deployResult.url, sendProgress)
+      verificationResult.runtime = runtimeResult
+    } else {
+      // Skip runtime verification
+      sendProgress({ id: 15, label: 'Runtime verification', detail: 'Skipped (disabled in settings)', status: 'skipped' })
+    }
+
+    // Step 16: Complete
+    sendProgress({ id: 16, label: 'Complete', detail: deployResult.url, status: 'completed' })
 
     // Save to history
     const historyEntry: HistoryEntry = {

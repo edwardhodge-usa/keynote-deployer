@@ -11,6 +11,7 @@ export default function Settings({ onThemeChange }: SettingsProps) {
     vercelTeamId: 'team_E1wAzl9zyAPrlGzyjmcXNuxd',
     theme: 'system',
     autoCopyUrl: true,
+    enableRuntimeVerification: false,
     projectNamePrefix: '',
     lastFolderPath: '',
   })
@@ -167,6 +168,25 @@ export default function Settings({ onThemeChange }: SettingsProps) {
                   <span
                     className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
                       settings.autoCopyUrl ? 'translate-x-5' : ''
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Runtime Verification</p>
+                  <p className="text-xs text-gray-400">Use browser automation to test deployed presentations</p>
+                </div>
+                <button
+                  onClick={() => save({ enableRuntimeVerification: !settings.enableRuntimeVerification })}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${
+                    settings.enableRuntimeVerification ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                      settings.enableRuntimeVerification ? 'translate-x-5' : ''
                     }`}
                   />
                 </button>

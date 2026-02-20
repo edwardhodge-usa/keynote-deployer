@@ -79,6 +79,7 @@ export interface AppSettings {
   vercelTeamId: string
   theme: 'light' | 'dark' | 'system'
   autoCopyUrl: boolean
+  enableRuntimeVerification: boolean
   projectNamePrefix: string
   lastFolderPath: string
 }
@@ -127,6 +128,23 @@ export interface FixVerification {
   pattern: string
 }
 
+// Runtime verification result from browser automation
+export interface RuntimeVerificationResult {
+  success: boolean
+  devicePixelRatio: number
+  canvasElements: {
+    count: number
+    sampleWidth: number
+    sampleHeight: number
+    sampleStyleWidth: string
+    sampleStyleHeight: string
+    dprScaling: boolean
+  }
+  navigationTested: boolean
+  reRenderTriggered: boolean
+  error?: string
+}
+
 // Full deployment verification result
 export interface VerificationResult {
   success: boolean
@@ -136,6 +154,7 @@ export interface VerificationResult {
   fixes: FixVerification[]
   totalFixesFound: number
   totalFixesMissing: number
+  runtime?: RuntimeVerificationResult
   error?: string
 }
 
