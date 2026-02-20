@@ -126,6 +126,12 @@ export async function processKeynoteFolder(
   // Write modified content back
   await fs.writeFile(mainJsPath, content, 'utf-8')
 
+  // Verify write succeeded by reading back
+  const verifyContent = await fs.readFile(mainJsPath, 'utf-8')
+  if (verifyContent !== content) {
+    errors.push('File write verification failed - content mismatch')
+  }
+
   // Step 11: Generate index.html
   onProgress({ id: 11, label: 'Generate index.html', detail: 'Creating wrapper...', status: 'active' })
   const indexHtml = generateIndexHtml(metadata.slideCount)

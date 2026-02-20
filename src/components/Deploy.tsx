@@ -152,6 +152,8 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
     setSteps(INITIAL_STEPS)
     setResult(null)
     setError('')
+    setResult(null)
+    setError('')
   }
 
   const framerEmbed = result?.url
