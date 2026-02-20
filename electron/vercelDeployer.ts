@@ -121,6 +121,7 @@ export async function deployToVercel(
         cwd: folderPath,
         env: {
           ...process.env,
+          PATH: `/opt/homebrew/bin:/usr/local/bin:${process.env.PATH || ''}`,
           VERCEL_ORG_ID: teamId,
           VERCEL_PROJECT_ID: project.id,
         },
