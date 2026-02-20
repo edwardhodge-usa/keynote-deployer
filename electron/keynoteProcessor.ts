@@ -80,17 +80,28 @@ export async function processKeynoteFolder(
   onProgress({ id: 2, label: 'Read metadata', detail: `${metadata.title} — ${metadata.slideCount} slides`, status: 'active' })
   onProgress({ id: 2, label: 'Read metadata', detail: `${metadata.title} — ${metadata.slideCount} slides`, status: 'completed' })
 
-  // Step 3: Backup main.js
-  onProgress({ id: 3, label: 'Backup main.js', detail: 'Creating backup...', status: 'active' })
+  // Step 3: Backup and restore main.js
+  onProgress({ id: 3, label: 'Backup main.js', detail: 'Checking backup...', status: 'active' })
+
+  let backupExists = false
   try {
     await fs.access(backupPath)
-    onProgress({ id: 3, label: 'Backup main.js', detail: 'Backup already exists — skipped', status: 'skipped' })
+    backupExists = true
   } catch {
+    // No backup exists
+  }
+
+  if (backupExists) {
+    // Restore from backup to ensure clean starting point
+    await fs.copyFile(backupPath, mainJsPath)
+    onProgress({ id: 3, label: 'Backup main.js', detail: 'Restored from backup', status: 'completed' })
+  } else {
+    // Create initial backup from original
     await fs.copyFile(mainJsPath, backupPath)
     onProgress({ id: 3, label: 'Backup main.js', detail: 'Backup created', status: 'completed' })
   }
 
-  // Read main.js content
+  // Read main.js content (now guaranteed to be original/clean)
   let content = await fs.readFile(mainJsPath, 'utf-8')
 
   // Steps 4-10: Apply fixes
