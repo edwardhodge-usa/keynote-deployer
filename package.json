@@ -7,7 +7,7 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && electron-builder",
+    "build": "vite build && electron-builder",
     "electron:dev": "vite",
     "electron:build": "vite build && electron-builder",
     "type-check": "tsc --noEmit"

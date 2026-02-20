@@ -9,7 +9,7 @@ interface DeployProps {
 
 type Phase = 'select' | 'confirm' | 'processing' | 'complete' | 'error'
 
-const INITIAL_STEPS: ProcessingStep[] = Array.from({ length: 14 }, (_, i) => ({
+const INITIAL_STEPS: ProcessingStep[] = Array.from({ length: 15 }, (_, i) => ({
   id: i + 1,
   label: [
     'Validate folder',
@@ -25,6 +25,7 @@ const INITIAL_STEPS: ProcessingStep[] = Array.from({ length: 14 }, (_, i) => ({
     'Generate index.html',
     'Vercel project',
     'Deploy',
+    'Verify deployment',
     'Complete',
   ][i],
   detail: '',
@@ -287,6 +288,48 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
                 {result.fixesApplied} fixes applied, {result.fixesSkipped} skipped
               </p>
             </div>
+
+            {/* Verification Results */}
+            {result.verification && (
+              <div className="card p-4 mb-6">
+                <h3 className="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">
+                  Deployment Verification
+                </h3>
+
+                {result.verification.success ? (
+                  <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm mb-3">
+                    <span>✓</span>
+                    <span>All {result.verification.totalFixesFound} fixes verified in deployed files</span>
+                  </div>
+                ) : (
+                  <div className="mb-3">
+                    <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm mb-2">
+                      <span>⚠</span>
+                      <span>{result.verification.totalFixesMissing} fixes missing in deployment</span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1.5 text-xs">
+                  {result.verification.fixes.map((fix) => (
+                    <div key={fix.fixNumber} className="flex items-center gap-2">
+                      <span className={fix.found ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                        {fix.found ? '✓' : '✗'}
+                      </span>
+                      <span className={fix.found ? 'text-gray-600 dark:text-gray-400' : 'text-red-600 dark:text-red-400'}>
+                        Fix {fix.fixNumber}: {fix.name}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {!result.verification.indexHtmlVerified && (
+                  <div className="mt-3 text-xs text-amber-600 dark:text-amber-400">
+                    ⚠ index.html verification failed
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="card p-5 mb-6">
               <div className="flex items-center gap-2 mb-4">

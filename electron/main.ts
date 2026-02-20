@@ -3,6 +3,7 @@ import path from 'path'
 import { loadSettings, saveSettings, loadHistory, addHistoryEntry, validateKeynoteFolder, detectVercelToken } from './fileOperations'
 import { processKeynoteFolder } from './keynoteProcessor'
 import { deployToVercel } from './vercelDeployer'
+import { verifyDeployment } from './verifier'
 import type { ProcessRequest, HistoryEntry, ProcessingStep } from '../src/types/index'
 
 let mainWindow: BrowserWindow | null = null
@@ -138,8 +139,11 @@ ipcMain.handle('process-and-deploy', async (event, request: ProcessRequest) => {
       }
     }
 
-    // Step 14: Complete
-    sendProgress({ id: 14, label: 'Complete', detail: deployResult.url, status: 'completed' })
+    // Step 14: Verify deployment
+    const verificationResult = await verifyDeployment(deployResult.url, sendProgress)
+
+    // Step 15: Complete
+    sendProgress({ id: 15, label: 'Complete', detail: deployResult.url, status: 'completed' })
 
     // Save to history
     const historyEntry: HistoryEntry = {
@@ -172,6 +176,7 @@ ipcMain.handle('process-and-deploy', async (event, request: ProcessRequest) => {
         url: deployResult.url,
         fixesApplied: processResult.fixesApplied,
         fixesSkipped: processResult.fixesSkipped,
+        verification: verificationResult,
       },
     }
   } catch (error) {

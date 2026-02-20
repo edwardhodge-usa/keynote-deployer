@@ -57,6 +57,7 @@ export interface PipelineResult {
   url: string
   fixesApplied: number
   fixesSkipped: number
+  verification?: VerificationResult
   error?: string
 }
 
@@ -116,6 +117,26 @@ export interface VercelProjectExtended {
     createdAt: number
     state: 'READY' | 'ERROR' | 'BUILDING' | 'QUEUED' | 'CANCELED'
   }
+}
+
+// Verification result for a single fix
+export interface FixVerification {
+  fixNumber: number
+  name: string
+  found: boolean
+  pattern: string
+}
+
+// Full deployment verification result
+export interface VerificationResult {
+  success: boolean
+  url: string
+  mainJsVerified: boolean
+  indexHtmlVerified: boolean
+  fixes: FixVerification[]
+  totalFixesFound: number
+  totalFixesMissing: number
+  error?: string
 }
 
 // IPC response wrapper
