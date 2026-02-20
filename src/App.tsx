@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import Sidebar from './components/Sidebar'
 import Deploy from './components/Deploy'
+import Projects from './components/Projects'
 import History from './components/History'
 import Settings from './components/Settings'
 import type { TabId } from './types'
@@ -8,6 +9,7 @@ import type { TabId } from './types'
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('deploy')
   const [isDark, setIsDark] = useState(false)
+  const [selectedProject, setSelectedProject] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     // Get initial theme
@@ -51,11 +53,17 @@ export default function App() {
     }
   }
 
+  const handleProjectSelect = (projectName: string) => {
+    setSelectedProject(projectName)
+    setActiveTab('deploy')
+  }
+
   return (
     <div className="flex h-full">
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} isDark={isDark} />
       <main className="flex-1 overflow-y-auto">
-        {activeTab === 'deploy' && <Deploy />}
+        {activeTab === 'deploy' && <Deploy selectedProject={selectedProject} onProjectUsed={() => setSelectedProject(undefined)} />}
+        {activeTab === 'projects' && <Projects onSelectProject={handleProjectSelect} />}
         {activeTab === 'history' && <History />}
         {activeTab === 'settings' && <Settings onThemeChange={handleThemeChange} />}
       </main>

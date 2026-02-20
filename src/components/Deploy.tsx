@@ -2,6 +2,11 @@ import { useState, useEffect, useCallback } from 'react'
 import DeployProgress from './DeployProgress'
 import type { KeynoteMetadata, ProcessingStep, ProcessingProgress, PipelineResult } from '../types'
 
+interface DeployProps {
+  selectedProject?: string
+  onProjectUsed: () => void
+}
+
 type Phase = 'select' | 'confirm' | 'processing' | 'complete' | 'error'
 
 const INITIAL_STEPS: ProcessingStep[] = Array.from({ length: 14 }, (_, i) => ({
@@ -35,7 +40,7 @@ function toKebabCase(str: string): string {
     .replace(/^-|-$/g, '')
 }
 
-export default function Deploy() {
+export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) {
   const [phase, setPhase] = useState<Phase>('select')
   const [folderPath, setFolderPath] = useState('')
   const [metadata, setMetadata] = useState<KeynoteMetadata | null>(null)
@@ -77,13 +82,20 @@ export default function Deploy() {
       setFolderPath(path)
       setMetadata(res.data.metadata)
 
-      // Load settings to get prefix
-      const settingsRes = await window.electron.loadSettings()
-      const prefix = settingsRes.success && settingsRes.data?.projectNamePrefix
-        ? settingsRes.data.projectNamePrefix
-        : ''
+      // Use selectedProject if provided, otherwise generate from title
+      if (selectedProject) {
+        setProjectName(selectedProject)
+        onProjectUsed() // Clear selected project after using
+      } else {
+        // Load settings to get prefix
+        const settingsRes = await window.electron.loadSettings()
+        const prefix = settingsRes.success && settingsRes.data?.projectNamePrefix
+          ? settingsRes.data.projectNamePrefix
+          : ''
 
-      setProjectName(prefix + toKebabCase(res.data.metadata.title))
+        setProjectName(prefix + toKebabCase(res.data.metadata.title))
+      }
+
       setPhase('confirm')
     } else {
       setError(res.data?.error || res.error || 'Invalid folder')
@@ -227,7 +239,10 @@ export default function Deploy() {
                 onChange={(e) => setProjectName(e.target.value)}
               />
               <p className="text-xs text-gray-400 mt-1">
-                URL will be: https://{projectName}.vercel.app
+                {selectedProject
+                  ? `⚠ Updating existing project: ${selectedProject}`
+                  : `URL will be: https://${projectName}.vercel.app`
+                }
               </p>
             </div>
 

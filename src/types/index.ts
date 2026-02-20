@@ -83,7 +83,7 @@ export interface AppSettings {
 }
 
 // Navigation tabs
-export type TabId = 'deploy' | 'history' | 'settings'
+export type TabId = 'deploy' | 'projects' | 'history' | 'settings'
 
 // Theme state
 export interface ThemeState {
@@ -102,6 +102,20 @@ export interface VercelProject {
   id: string
   name: string
   accountId: string
+}
+
+// Extended Vercel project info with deployment metadata
+export interface VercelProjectExtended {
+  id: string
+  name: string
+  accountId: string
+  createdAt?: number
+  updatedAt?: number
+  latestDeployment?: {
+    url: string
+    createdAt: number
+    state: 'READY' | 'ERROR' | 'BUILDING' | 'QUEUED' | 'CANCELED'
+  }
 }
 
 // IPC response wrapper

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings, ProcessRequest, IpcResponse, FolderValidation, TokenDetection, HistoryEntry, ProcessingProgress, ThemeState } from '../src/types/index'
+import type { AppSettings, ProcessRequest, IpcResponse, FolderValidation, TokenDetection, HistoryEntry, ProcessingProgress, ThemeState, VercelProjectExtended } from '../src/types/index'
 
 export interface ElectronAPI {
   selectFolder: () => Promise<IpcResponse<string>>
@@ -9,6 +9,7 @@ export interface ElectronAPI {
   saveSettings: (settings: Partial<AppSettings>) => Promise<IpcResponse<void>>
   detectVercelToken: () => Promise<IpcResponse<TokenDetection>>
   loadHistory: () => Promise<IpcResponse<HistoryEntry[]>>
+  fetchVercelProjects: () => Promise<IpcResponse<VercelProjectExtended[]>>
   openUrl: (url: string) => Promise<void>
   copyToClipboard: (text: string) => Promise<void>
   getSystemTheme: () => Promise<IpcResponse<ThemeState>>
@@ -34,6 +35,8 @@ const electronAPI: ElectronAPI = {
   detectVercelToken: () => ipcRenderer.invoke('detect-vercel-token'),
 
   loadHistory: () => ipcRenderer.invoke('load-history'),
+
+  fetchVercelProjects: () => ipcRenderer.invoke('fetch-vercel-projects'),
 
   openUrl: (url: string) => ipcRenderer.invoke('open-url', url),
 

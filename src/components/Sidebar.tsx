@@ -8,6 +8,7 @@ interface SidebarProps {
 
 const tabs: { id: TabId; label: string; icon: string }[] = [
   { id: 'deploy', label: 'Deploy', icon: '\u25B6' },
+  { id: 'projects', label: 'Projects', icon: '\u{1F4E6}' },
   { id: 'history', label: 'History', icon: '\u23F3' },
   { id: 'settings', label: 'Settings', icon: '\u2699' },
 ]

@@ -218,6 +218,44 @@ ipcMain.handle('load-history', async () => {
   }
 })
 
+// Fetch all Vercel projects
+ipcMain.handle('fetch-vercel-projects', async () => {
+  try {
+    const settings = await loadSettings()
+    if (!settings.vercelToken) {
+      return { success: false, error: 'Vercel token not configured' }
+    }
+
+    const response = await fetch(
+      `https://api.vercel.com/v9/projects?teamId=${settings.vercelTeamId}&limit=100`,
+      { headers: { Authorization: `Bearer ${settings.vercelToken}` } }
+    )
+
+    if (!response.ok) {
+      const errorBody = await response.text()
+      return { success: false, error: `API error: ${response.status} ${errorBody}` }
+    }
+
+    const data = await response.json()
+    const projects = (data.projects || []).map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      accountId: p.accountId,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+      latestDeployment: p.latestDeployments?.[0] ? {
+        url: p.latestDeployments[0].url,
+        createdAt: p.latestDeployments[0].createdAt,
+        state: p.latestDeployments[0].readyState || p.latestDeployments[0].state,
+      } : undefined,
+    }))
+
+    return { success: true, data: projects }
+  } catch (error) {
+    return { success: false, error: String(error) }
+  }
+})
+
 // Open URL in default browser
 ipcMain.handle('open-url', async (_event, url: string) => {
   await shell.openExternal(url)

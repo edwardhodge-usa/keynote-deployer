@@ -8,6 +8,7 @@ import type {
   HistoryEntry,
   ProcessingProgress,
   ThemeState,
+  VercelProjectExtended,
 } from './types'
 
 export interface ElectronAPI {
@@ -18,6 +19,7 @@ export interface ElectronAPI {
   saveSettings: (settings: Partial<AppSettings>) => Promise<IpcResponse<void>>
   detectVercelToken: () => Promise<IpcResponse<TokenDetection>>
   loadHistory: () => Promise<IpcResponse<HistoryEntry[]>>
+  fetchVercelProjects: () => Promise<IpcResponse<VercelProjectExtended[]>>
   openUrl: (url: string) => Promise<void>
   copyToClipboard: (text: string) => Promise<void>
   getSystemTheme: () => Promise<IpcResponse<ThemeState>>

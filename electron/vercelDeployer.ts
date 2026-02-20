@@ -130,11 +130,14 @@ export async function deployToVercel(
       }
     )
 
-    // CLI outputs the URL on stdout
-    const url = stdout.trim().split('\n').pop()?.trim() || ''
+    // CLI outputs the URL on stdout or stderr
+    const output = (stdout + '\n' + stderr).trim()
+    const urlMatch = output.match(/https:\/\/[^\s]+\.vercel\.app/g)
+    const deployUrl = urlMatch ? urlMatch[urlMatch.length - 1] : ''
 
-    if (!url || !url.startsWith('http')) {
-      throw new Error(`Unexpected CLI output: ${stdout}\n${stderr}`)
+    // Verify deployment succeeded (look for "Aliased:" or production URL)
+    if (!output.includes('Aliased:') && !output.includes('Production:')) {
+      throw new Error(`Deployment may have failed. Output: ${output.slice(0, 500)}`)
     }
 
     // Construct the clean production URL
