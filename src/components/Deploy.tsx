@@ -239,12 +239,16 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
                 type="text"
                 className="input font-mono"
                 value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
+                onChange={(e) => setProjectName(e.target.value.toLowerCase())}
+                onBlur={(e) => setProjectName(toKebabCase(e.target.value))}
+                placeholder="my-project-name"
               />
               <p className="text-xs text-gray-400 mt-1">
                 {selectedProject
                   ? `⚠ Updating existing project: ${selectedProject}`
-                  : `URL will be: https://${projectName}.vercel.app`
+                  : projectName
+                  ? `URL will be: https://${projectName}.vercel.app`
+                  : 'Lowercase letters, numbers, and hyphens only'
                 }
               </p>
             </div>
