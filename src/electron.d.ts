@@ -20,6 +20,7 @@ export interface ElectronAPI {
   detectVercelToken: () => Promise<IpcResponse<TokenDetection>>
   loadHistory: () => Promise<IpcResponse<HistoryEntry[]>>
   fetchVercelProjects: () => Promise<IpcResponse<VercelProjectExtended[]>>
+  deleteVercelProject: (projectId: string) => Promise<IpcResponse<void>>
   openUrl: (url: string) => Promise<void>
   copyToClipboard: (text: string) => Promise<void>
   getSystemTheme: () => Promise<IpcResponse<ThemeState>>

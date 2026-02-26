@@ -2,48 +2,59 @@ import fs from 'fs/promises'
 import path from 'path'
 import type { KeynoteMetadata, ProcessingStep } from '../src/types/index'
 
-// Each fix: search string → replacement string (literal, not regex)
+// Each fix patches minified Keynote main.js for HiDPI (3x) rendering.
+// Search/replace are literal strings (not regex) matched against the minified source.
 interface Fix {
   name: string
   search: string
   replace: string
 }
 
+const HIDPI_SCALE = 3
+const HIDPI_INV = '0.3333'
+
 const FIXES: Fix[] = [
   {
+    // Increases PDF rasterization scale factor from 1x to 3x
     name: 'zC scale (PDF rasterization)',
     search: 'qC=!0;const zC=1,',
-    replace: 'qC=!0;const zC=3,',
+    replace: `qC=!0;const zC=${HIDPI_SCALE},`,
   },
   {
+    // Forces HiDPI rendering path regardless of fullscreen state
     name: 'Fullscreen bypass',
     search: 'UC.isFullscreen||A>this.showWidth',
     replace: '!0||A>this.showWidth',
   },
   {
+    // Scales WebGL viewport for sparkle/particle transition effects
     name: 'Viewport A (sparkle/particle effects)',
     search: 'Q.viewport(0,0,Q.viewportWidth,Q.viewportHeight)',
-    replace: 'Q.viewport(0,0,Q.viewportWidth*Math.max(window.devicePixelRatio||1,2),Q.viewportHeight*Math.max(window.devicePixelRatio||1,2))',
+    replace: `Q.viewport(0,0,Q.viewportWidth*${HIDPI_SCALE},Q.viewportHeight*${HIDPI_SCALE})`,
   },
   {
+    // Scales WebGL viewport for firework transition effects
     name: 'Viewport B (firework effects)',
     search: 'C.viewport(0,0,C.viewportWidth,C.viewportHeight)',
-    replace: 'C.viewport(0,0,C.viewportWidth*Math.max(window.devicePixelRatio||1,2),C.viewportHeight*Math.max(window.devicePixelRatio||1,2))',
+    replace: `C.viewport(0,0,C.viewportWidth*${HIDPI_SCALE},C.viewportHeight*${HIDPI_SCALE})`,
   },
   {
+    // Scales viewport dimensions on browser resize events
     name: 'Resize viewport DPR scaling',
     search: 'B.viewport(0,0,g,C),B.viewportWidth=g,B.viewportHeight=C',
-    replace: 'B.viewport(0,0,g*Math.max(window.devicePixelRatio||1,2),C*Math.max(window.devicePixelRatio||1,2)),B.viewportWidth=g,B.viewportHeight=C',
+    replace: `B.viewport(0,0,g*${HIDPI_SCALE},C*${HIDPI_SCALE}),B.viewportWidth=g,B.viewportHeight=C`,
   },
   {
+    // Compensates for 3x canvas by dividing viewport dimensions in constructor
     name: 'Constructor viewport division',
     search: 'g.viewportWidth=B.width,g.viewportHeight=B.height',
-    replace: 'g.viewportWidth=B.width/Math.max(window.devicePixelRatio||1,2),g.viewportHeight=B.height/Math.max(window.devicePixelRatio||1,2)',
+    replace: `g.viewportWidth=B.width/${HIDPI_SCALE},g.viewportHeight=B.height/${HIDPI_SCALE}`,
   },
   {
+    // Triples canvas backing store and applies inverse CSS scale for crisp rendering
     name: 'Canvas DPR backing store',
     search: 'B.width=UC.script.slideWidth,B.height=UC.script.slideHeight',
-    replace: 'B.width=UC.script.slideWidth*Math.max(window.devicePixelRatio||1,2),B.height=UC.script.slideHeight*Math.max(window.devicePixelRatio||1,2),B.style.width=UC.script.slideWidth+"px",B.style.height=UC.script.slideHeight+"px"',
+    replace: `B.width=UC.script.slideWidth*${HIDPI_SCALE},B.height=UC.script.slideHeight*${HIDPI_SCALE},B.style.width=UC.script.slideWidth*${HIDPI_SCALE}+"px",B.style.height=UC.script.slideHeight*${HIDPI_SCALE}+"px",B.style.transform="scale(${HIDPI_INV})",B.style.transformOrigin="0 0"`,
   },
 ]
 
@@ -54,6 +65,25 @@ export interface ProcessResult {
 }
 
 type ProgressCallback = (step: ProcessingStep) => void
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function reportProgress(
+  onProgress: ProgressCallback,
+  id: number,
+  label: string,
+  detail: string,
+  status: ProcessingStep['status']
+): void {
+  onProgress({ id, label, detail, status })
+}
 
 export async function processKeynoteFolder(
   folderPath: string,
@@ -66,85 +96,91 @@ export async function processKeynoteFolder(
   let fixesSkipped = 0
   const errors: string[] = []
 
-  // Step 1: Validate folder
-  onProgress({ id: 1, label: 'Validate folder', detail: 'Checking folder structure...', status: 'active' })
-  try {
-    await fs.access(mainJsPath)
-    onProgress({ id: 1, label: 'Validate folder', detail: 'Folder validated', status: 'completed' })
-  } catch {
-    onProgress({ id: 1, label: 'Validate folder', detail: 'main.js not found', status: 'error' })
+  // Step 1: Validate folder structure
+  reportProgress(onProgress, 1, 'Validate folder', 'Checking folder structure...', 'active')
+  if (!(await fileExists(mainJsPath))) {
+    reportProgress(onProgress, 1, 'Validate folder', 'main.js not found', 'error')
     return { fixesApplied: 0, fixesSkipped: 0, errors: ['main.js not found'] }
   }
+  reportProgress(onProgress, 1, 'Validate folder', 'Folder validated', 'completed')
 
-  // Step 2: Read metadata
-  onProgress({ id: 2, label: 'Read metadata', detail: `${metadata.title} — ${metadata.slideCount} slides`, status: 'active' })
-  onProgress({ id: 2, label: 'Read metadata', detail: `${metadata.title} — ${metadata.slideCount} slides`, status: 'completed' })
+  // Step 2: Confirm metadata
+  const metadataSummary = `${metadata.title} — ${metadata.slideCount} slides`
+  reportProgress(onProgress, 2, 'Read metadata', metadataSummary, 'completed')
 
-  // Step 3: Backup and restore main.js
-  onProgress({ id: 3, label: 'Backup main.js', detail: 'Checking backup...', status: 'active' })
-
-  let backupExists = false
-  try {
-    await fs.access(backupPath)
-    backupExists = true
-  } catch {
-    // No backup exists
-  }
-
-  if (backupExists) {
-    // Restore from backup to ensure clean starting point
+  // Step 3: Ensure clean main.js from backup (or create initial backup)
+  reportProgress(onProgress, 3, 'Backup main.js', 'Checking backup...', 'active')
+  if (await fileExists(backupPath)) {
     await fs.copyFile(backupPath, mainJsPath)
-    onProgress({ id: 3, label: 'Backup main.js', detail: 'Restored from backup', status: 'completed' })
+    reportProgress(onProgress, 3, 'Backup main.js', 'Restored from backup', 'completed')
   } else {
-    // Create initial backup from original
     await fs.copyFile(mainJsPath, backupPath)
-    onProgress({ id: 3, label: 'Backup main.js', detail: 'Backup created', status: 'completed' })
+    reportProgress(onProgress, 3, 'Backup main.js', 'Backup created', 'completed')
   }
 
-  // Read main.js content (now guaranteed to be original/clean)
+  // Read main.js content (now guaranteed to be the original/clean version)
   let content = await fs.readFile(mainJsPath, 'utf-8')
 
-  // Steps 4-10: Apply fixes
+  // Steps 4-10: Apply HiDPI fixes
   for (let i = 0; i < FIXES.length; i++) {
     const fix = FIXES[i]
     const stepId = i + 4
-    onProgress({ id: stepId, label: `Fix ${i + 1}: ${fix.name}`, detail: 'Applying...', status: 'active' })
+    const stepLabel = `Fix ${i + 1}: ${fix.name}`
+    reportProgress(onProgress, stepId, stepLabel, 'Applying...', 'active')
 
     if (content.includes(fix.search)) {
       content = content.replace(fix.search, fix.replace)
       fixesApplied++
-      onProgress({ id: stepId, label: `Fix ${i + 1}: ${fix.name}`, detail: 'Applied', status: 'completed' })
+      reportProgress(onProgress, stepId, stepLabel, 'Applied', 'completed')
     } else if (content.includes(fix.replace)) {
       fixesSkipped++
-      onProgress({ id: stepId, label: `Fix ${i + 1}: ${fix.name}`, detail: 'Already applied — skipped', status: 'skipped' })
+      reportProgress(onProgress, stepId, stepLabel, 'Already applied — skipped', 'skipped')
     } else {
       errors.push(`Fix ${i + 1} (${fix.name}): pattern not found`)
-      onProgress({ id: stepId, label: `Fix ${i + 1}: ${fix.name}`, detail: 'Pattern not found', status: 'error' })
+      reportProgress(onProgress, stepId, stepLabel, 'Pattern not found', 'error')
     }
   }
 
-  // Write modified content back
+  // Write modified content and verify
   await fs.writeFile(mainJsPath, content, 'utf-8')
-
-  // Verify write succeeded by reading back
   const verifyContent = await fs.readFile(mainJsPath, 'utf-8')
   if (verifyContent !== content) {
     throw new Error('File write verification failed - content mismatch')
   }
 
-  // Step 11: Generate index.html
-  onProgress({ id: 11, label: 'Generate index.html', detail: 'Creating wrapper...', status: 'active' })
+  // Step 11: Generate index.html wrapper
+  reportProgress(onProgress, 11, 'Generate index.html', 'Creating wrapper...', 'active')
   const indexHtml = generateIndexHtml(metadata.slideCount)
   await fs.writeFile(path.join(folderPath, 'index.html'), indexHtml, 'utf-8')
-  onProgress({ id: 11, label: 'Generate index.html', detail: 'index.html created', status: 'completed' })
+  reportProgress(onProgress, 11, 'Generate index.html', 'index.html created', 'completed')
 
   return { fixesApplied, fixesSkipped, errors }
 }
 
-function generateIndexHtml(slideCount: number): string {
-  return `<!doctype html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Keynote</title><meta name="viewport" content="initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,width=device-width"/><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/><style>
+// ---------------------------------------------------------------------------
+// Index HTML generation
+// ---------------------------------------------------------------------------
+
+const SYSTEM_FONT_STACK = '-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif'
+
+// Navigation bar height (px) - reserves space at bottom to prevent overlap with presentation
+// Calculation: button height (~30px) + bottom margin (20px) + internal gaps (20px) = 70px rounded to 80px
+const NAV_BAR_RESERVED_HEIGHT = 80
+
+// Delays (ms) at which to fire resize events after slide transitions,
+// ensuring Keynote's renderer repaints at the correct HiDPI resolution.
+const RE_RENDER_DELAYS = [20, 50, 100, 200, 400]
+const RE_RENDER_POLL_INTERVAL = 100
+const RE_RENDER_POLL_COUNT = 20
+
+// Navigation key codes: ArrowLeft, ArrowRight, PageUp, PageDown
+const NAV_KEY_CODES = [37, 39, 33, 34]
+
+function buildStyles(): string {
+  return `
 html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}
-#stageArea{width:100vw;height:100vh;position:relative}
+canvas{image-rendering:optimizeSpeed!important;image-rendering:-webkit-optimize-contrast!important;image-rendering:crisp-edges!important;image-rendering:pixelated!important;-ms-interpolation-mode:nearest-neighbor!important}
+#stageArea{width:100vw;height:calc(100vh - ${NAV_BAR_RESERVED_HEIGHT}px);position:relative;display:flex;align-items:center;justify-content:center}
 #loadingOverlay{
   position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:10000;
   display:flex;align-items:center;justify-content:center;flex-direction:column;
@@ -156,11 +192,11 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
   border-radius:50%;animation:spin 0.8s linear infinite;
 }
 @keyframes spin{to{transform:rotate(360deg)}}
-#loadingText{color:rgba(255,255,255,0.4);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;font-size:13px;margin-top:16px}
+#loadingText{color:rgba(255,255,255,0.4);font-family:${SYSTEM_FONT_STACK};font-size:13px;margin-top:16px}
 #navBar{
   position:fixed;bottom:20px;left:0;right:0;
   display:flex;align-items:center;justify-content:center;gap:20px;z-index:9999;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  font-family:${SYSTEM_FONT_STACK};
   user-select:none;-webkit-user-select:none;pointer-events:none;
 }
 #navBar button{
@@ -171,15 +207,28 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 #navBar button:hover{background:rgba(80,80,80,0.8);border-color:rgba(255,255,255,0.3)}
 #navBar button:active{background:rgba(30,30,30,0.8)}
 #slideCounter{color:rgba(255,255,255,0.5);font-size:14px;min-width:80px;text-align:center;pointer-events:auto}
-</style></head><body id="body" bgcolor="black">
-<div id="loadingOverlay"><div id="loadingSpinner"></div><div id="loadingText">Loading presentation&hellip;</div></div>
-<div id="stageArea"><div id="stage" class="stage"></div><div id="hyperlinkPlane" class="stage"></div></div><div id="slideshowNavigator"></div><div id="slideNumberControl"></div><div id="slideNumberDisplay"></div><div id="helpPlacard"></div><div id="waitingIndicator"><div id="waitingSpinner"></div></div><div id="navBar">
-<button id="btnPrev">&#8592; Previous</button>
-<span id="slideCounter"></span>
-<button id="btnNext">Next &#8594;</button>
-</div>
-<script src="assets/player/main.js"></script>
-<script>
+`.trim()
+}
+
+function buildBodyHtml(): string {
+  return [
+    '<div id="loadingOverlay"><div id="loadingSpinner"></div><div id="loadingText">Loading presentation&hellip;</div></div>',
+    '<div id="stageArea"><div id="stage" class="stage"></div><div id="hyperlinkPlane" class="stage"></div></div>',
+    '<div id="slideshowNavigator"></div>',
+    '<div id="slideNumberControl"></div>',
+    '<div id="slideNumberDisplay"></div>',
+    '<div id="helpPlacard"></div>',
+    '<div id="waitingIndicator"><div id="waitingSpinner"></div></div>',
+    '<div id="navBar">',
+    '  <button id="btnPrev">&#8592; Previous</button>',
+    '  <span id="slideCounter"></span>',
+    '  <button id="btnNext">Next &#8594;</button>',
+    '</div>',
+  ].join('\n')
+}
+
+function buildScript(slideCount: number): string {
+  return `
 (function(){
   var overlay=document.getElementById('loadingOverlay');
   var counter=document.getElementById('slideCounter');
@@ -193,6 +242,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
     setTimeout(function(){overlay.style.display='none'},500);
   }
 
+  // Poll for canvas elements indicating Keynote has rendered, then hide loader
   var checkReady=setInterval(function(){
     var canvases=document.querySelectorAll('#stage canvas, #stageArea canvas');
     if(canvases.length>0){
@@ -201,6 +251,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
     }
   },100);
 
+  // Fallback: remove overlay after 5 seconds regardless
   setTimeout(function(){
     clearInterval(checkReady);
     removeOverlay();
@@ -218,59 +269,49 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
     counter.textContent=display+' / '+totalSlides;
   }
 
-  function doNext(e){
+  function navigateSlide(e,keyCode,keyName){
     e.stopPropagation();
     e.preventDefault();
-    document.dispatchEvent(new KeyboardEvent('keydown',{keyCode:39,key:'ArrowRight',bubbles:true}));
+    document.dispatchEvent(new KeyboardEvent('keydown',{keyCode:keyCode,key:keyName,bubbles:true}));
     setTimeout(updateCounter,200);
   }
 
-  function doPrev(e){
-    e.stopPropagation();
-    e.preventDefault();
-    document.dispatchEvent(new KeyboardEvent('keydown',{keyCode:37,key:'ArrowLeft',bubbles:true}));
-    setTimeout(updateCounter,200);
-  }
+  document.getElementById('btnNext').addEventListener('click',function(e){navigateSlide(e,39,'ArrowRight')});
+  document.getElementById('btnPrev').addEventListener('click',function(e){navigateSlide(e,37,'ArrowLeft')});
 
-  document.getElementById('btnNext').addEventListener('click',doNext);
-  document.getElementById('btnPrev').addEventListener('click',doPrev);
-
+  // HiDPI re-render: dispatch resize events at staggered intervals so Keynote
+  // repaints canvases at 3x resolution after each slide transition.
   var reRenderTimers=[];
   var pollingInterval=null;
+  var delays=${JSON.stringify(RE_RENDER_DELAYS)};
+  var navKeyCodes=${JSON.stringify(NAV_KEY_CODES)};
+
+  function fireResize(){window.dispatchEvent(new Event('resize'))}
 
   function triggerReRenders(){
-    // Clear any pending re-renders and polling
     reRenderTimers.forEach(function(t){clearTimeout(t)});
     reRenderTimers=[];
     if(pollingInterval){clearInterval(pollingInterval);pollingInterval=null;}
 
-    // Immediate resize
-    window.dispatchEvent(new Event('resize'));
+    fireResize();
+    for(var i=0;i<delays.length;i++){
+      reRenderTimers.push(setTimeout(fireResize,delays[i]));
+    }
 
-    // Aggressive intervals
-    reRenderTimers.push(setTimeout(function(){window.dispatchEvent(new Event('resize'))},20));
-    reRenderTimers.push(setTimeout(function(){window.dispatchEvent(new Event('resize'))},50));
-    reRenderTimers.push(setTimeout(function(){window.dispatchEvent(new Event('resize'))},100));
-    reRenderTimers.push(setTimeout(function(){window.dispatchEvent(new Event('resize'))},200));
-    reRenderTimers.push(setTimeout(function(){window.dispatchEvent(new Event('resize'))},400));
-
-    // Continuous polling for 2 seconds to ensure we catch the render
+    // Continuous polling for ${RE_RENDER_POLL_COUNT * RE_RENDER_POLL_INTERVAL / 1000} seconds to catch late renders
     var pollCount=0;
     pollingInterval=setInterval(function(){
-      window.dispatchEvent(new Event('resize'));
+      fireResize();
       pollCount++;
-      if(pollCount>=20){clearInterval(pollingInterval);pollingInterval=null;}
-    },100);
+      if(pollCount>=${RE_RENDER_POLL_COUNT}){clearInterval(pollingInterval);pollingInterval=null;}
+    },${RE_RENDER_POLL_INTERVAL});
   }
 
-  // Trigger on hashchange (slide transitions)
   window.addEventListener('hashchange',triggerReRenders);
 
-  // Also trigger on keyboard navigation (catches slides with no transition)
   document.addEventListener('keydown',function(e){
-    if(e.keyCode===37||e.keyCode===39||e.keyCode===33||e.keyCode===34){
-      // Arrow keys or Page Up/Down pressed
-      triggerReRenders();
+    for(var i=0;i<navKeyCodes.length;i++){
+      if(e.keyCode===navKeyCodes[i]){triggerReRenders();return;}
     }
   });
 
@@ -279,5 +320,24 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
   setTimeout(updateCounter,1000);
   setInterval(updateCounter,1000);
 })();
-</script></body></html>`
+`.trim()
+}
+
+function generateIndexHtml(slideCount: number): string {
+  return [
+    '<!doctype html>',
+    '<html xmlns="http://www.w3.org/1999/xhtml">',
+    '<head>',
+    '  <title>Keynote</title>',
+    '  <meta name="viewport" content="initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,width=device-width"/>',
+    '  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>',
+    `  <style>${buildStyles()}</style>`,
+    '</head>',
+    '<body id="body" bgcolor="black">',
+    buildBodyHtml(),
+    '<script src="assets/player/main.js"></script>',
+    `<script>${buildScript(slideCount)}</script>`,
+    '</body>',
+    '</html>',
+  ].join('\n')
 }

@@ -15,27 +15,27 @@ const EXPECTED_FIXES = [
   {
     number: 3,
     name: 'Viewport A (sparkle/particle effects)',
-    pattern: 'Q.viewport(0,0,Q.viewportWidth*Math.max(window.devicePixelRatio||1,2),Q.viewportHeight*Math.max(window.devicePixelRatio||1,2))',
+    pattern: 'Q.viewport(0,0,Q.viewportWidth*3,Q.viewportHeight*3)',
   },
   {
     number: 4,
     name: 'Viewport B (firework effects)',
-    pattern: 'C.viewport(0,0,C.viewportWidth*Math.max(window.devicePixelRatio||1,2),C.viewportHeight*Math.max(window.devicePixelRatio||1,2))',
+    pattern: 'C.viewport(0,0,C.viewportWidth*3,C.viewportHeight*3)',
   },
   {
     number: 5,
     name: 'Resize viewport DPR scaling',
-    pattern: 'B.viewport(0,0,g*Math.max(window.devicePixelRatio||1,2),C*Math.max(window.devicePixelRatio||1,2)),B.viewportWidth=g,B.viewportHeight=C',
+    pattern: 'B.viewport(0,0,g*3,C*3)',
   },
   {
     number: 6,
     name: 'Constructor viewport division',
-    pattern: 'g.viewportWidth=B.width/Math.max(window.devicePixelRatio||1,2),g.viewportHeight=B.height/Math.max(window.devicePixelRatio||1,2)',
+    pattern: 'g.viewportWidth=B.width/3,g.viewportHeight=B.height/3',
   },
   {
     number: 7,
     name: 'Canvas DPR backing store',
-    pattern: 'B.width=UC.script.slideWidth*Math.max(window.devicePixelRatio||1,2),B.height=UC.script.slideHeight*Math.max(window.devicePixelRatio||1,2),B.style.width=UC.script.slideWidth+"px",B.style.height=UC.script.slideHeight+"px"',
+    pattern: 'B.width=UC.script.slideWidth*3,B.height=UC.script.slideHeight*3,B.style.width=UC.script.slideWidth*3+"px"',
   },
 ]
 

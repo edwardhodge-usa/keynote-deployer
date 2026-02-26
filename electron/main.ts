@@ -271,6 +271,33 @@ ipcMain.handle('fetch-vercel-projects', async () => {
   }
 })
 
+// Delete Vercel project
+ipcMain.handle('delete-vercel-project', async (_event, projectId: string) => {
+  try {
+    const settings = await loadSettings()
+    if (!settings.vercelToken) {
+      return { success: false, error: 'Vercel token not configured' }
+    }
+
+    const response = await fetch(
+      `https://api.vercel.com/v9/projects/${projectId}?teamId=${settings.vercelTeamId}`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${settings.vercelToken}` },
+      }
+    )
+
+    if (!response.ok) {
+      const errorBody = await response.text()
+      return { success: false, error: `API error: ${response.status} ${errorBody}` }
+    }
+
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: String(error) }
+  }
+})
+
 // Open URL in default browser
 ipcMain.handle('open-url', async (_event, url: string) => {
   await shell.openExternal(url)

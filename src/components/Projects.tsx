@@ -44,6 +44,23 @@ export default function Projects({ onSelectProject }: ProjectsProps) {
     onSelectProject(projectName)
   }
 
+  const handleDeleteProject = async (projectId: string, projectName: string) => {
+    const confirmed = confirm(
+      `Delete project "${projectName}"?\n\nThis will permanently delete the project from Vercel. This cannot be undone.`
+    )
+
+    if (!confirmed) return
+
+    const res = await window.electron.deleteVercelProject(projectId)
+
+    if (res.success) {
+      // Remove from local list
+      setProjects(prev => prev.filter(p => p.id !== projectId))
+    } else {
+      alert(`Failed to delete project: ${res.error}`)
+    }
+  }
+
   const formatDate = (timestamp?: number) => {
     if (!timestamp) return 'N/A'
     const date = new Date(timestamp)
@@ -152,13 +169,22 @@ export default function Projects({ onSelectProject }: ProjectsProps) {
                   </div>
                 )}
 
-                {/* Action Button */}
-                <button
-                  onClick={() => handleUpdateProject(project.name)}
-                  className="btn btn-primary w-full"
-                >
-                  Update This Project
-                </button>
+                {/* Action Buttons */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleUpdateProject(project.name)}
+                    className="btn btn-primary flex-1"
+                  >
+                    Update
+                  </button>
+                  <button
+                    onClick={() => handleDeleteProject(project.id, project.name)}
+                    className="btn btn-secondary"
+                    title="Delete project"
+                  >
+                    🗑️
+                  </button>
+                </div>
               </div>
             ))}
           </div>
