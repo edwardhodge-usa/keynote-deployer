@@ -5,6 +5,9 @@ export default function History() {
   const [entries, setEntries] = useState<HistoryEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState<string | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<Record<string, string>>({})
 
   useEffect(() => {
     loadHistory()
@@ -23,6 +26,28 @@ export default function History() {
     await window.electron.copyToClipboard(url)
     setCopied(id)
     setTimeout(() => setCopied(null), 2000)
+  }
+
+  const handleDelete = async (entry: HistoryEntry) => {
+    setDeletingId(entry.id)
+    setDeleteError((prev) => ({ ...prev, [entry.id]: '' }))
+
+    try {
+      const vercelResult = await window.electron.deleteVercelProject(entry.projectName)
+      if (!vercelResult.success) {
+        setDeleteError((prev) => ({
+          ...prev,
+          [entry.id]: vercelResult.error || 'Vercel deletion failed',
+        }))
+      }
+    } catch {
+      // Vercel delete failed — still clean up locally
+    }
+
+    await window.electron.removeHistoryEntry(entry.id)
+    setEntries((prev) => prev.filter((e) => e.id !== entry.id))
+    setDeletingId(null)
+    setConfirmingDelete(null)
   }
 
   const formatDate = (dateStr: string) => {
@@ -70,20 +95,63 @@ export default function History() {
                   </div>
 
                   <div className="flex gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => copyUrl(entry.url, entry.id)}
-                      className="btn btn-secondary btn-sm"
-                    >
-                      {copied === entry.id ? 'Copied!' : 'Copy URL'}
-                    </button>
-                    <button
-                      onClick={() => window.electron.openUrl(entry.url)}
-                      className="btn btn-ghost btn-sm"
-                    >
-                      Open
-                    </button>
+                    {confirmingDelete === entry.id ? (
+                      <>
+                        <button
+                          onClick={() => setConfirmingDelete(null)}
+                          disabled={deletingId === entry.id}
+                          className="btn btn-ghost btn-sm"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => handleDelete(entry)}
+                          disabled={deletingId === entry.id}
+                          className="btn btn-danger btn-sm"
+                        >
+                          {deletingId === entry.id ? (
+                            <span className="spinner spinner-sm" />
+                          ) : (
+                            'Confirm Delete'
+                          )}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => copyUrl(entry.url, entry.id)}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          {copied === entry.id ? 'Copied!' : 'Copy URL'}
+                        </button>
+                        <button
+                          onClick={() => window.electron.openUrl(entry.url)}
+                          className="btn btn-ghost btn-sm"
+                        >
+                          Open
+                        </button>
+                        <button
+                          onClick={() => setConfirmingDelete(entry.id)}
+                          className="btn btn-danger btn-sm"
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
+
+                {confirmingDelete === entry.id && (
+                  <p className="text-xs text-red-400 mt-2">
+                    This will permanently delete {entry.projectName}.vercel.app
+                  </p>
+                )}
+
+                {deleteError[entry.id] && (
+                  <p className="text-xs text-red-400 mt-2">
+                    {deleteError[entry.id]} — removed from history
+                  </p>
+                )}
 
                 <div className="mt-2 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700/50">
                   <p className="text-xs font-mono text-gray-600 dark:text-gray-400 truncate">
