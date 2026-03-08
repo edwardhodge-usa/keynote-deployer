@@ -57,6 +57,12 @@ export async function addHistoryEntry(entry: HistoryEntry): Promise<void> {
   await fs.writeFile(getHistoryPath(), JSON.stringify(history, null, 2), 'utf-8')
 }
 
+export async function removeHistoryEntry(id: string): Promise<void> {
+  const history = await loadHistory()
+  const filtered = history.filter(entry => entry.id !== id)
+  await fs.writeFile(getHistoryPath(), JSON.stringify(filtered, null, 2), 'utf-8')
+}
+
 export async function validateKeynoteFolder(folderPath: string): Promise<FolderValidation> {
   try {
     const headerPath = path.join(folderPath, 'assets', 'header.json')

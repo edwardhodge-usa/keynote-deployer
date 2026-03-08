@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, clipboard, nativeTheme } from 'electron'
 import path from 'path'
-import { loadSettings, saveSettings, loadHistory, addHistoryEntry, validateKeynoteFolder, detectVercelToken } from './fileOperations'
+import { loadSettings, saveSettings, loadHistory, addHistoryEntry, removeHistoryEntry, validateKeynoteFolder, detectVercelToken } from './fileOperations'
 import { processKeynoteFolder } from './keynoteProcessor'
 import { deployToVercel } from './vercelDeployer'
 import { verifyDeployment } from './verifier'
@@ -233,6 +233,16 @@ ipcMain.handle('load-history', async () => {
   }
 })
 
+// Remove a history entry by ID
+ipcMain.handle('remove-history-entry', async (_event, id: string) => {
+  try {
+    await removeHistoryEntry(id)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: String(error) }
+  }
+})
+
 // Fetch all Vercel projects
 ipcMain.handle('fetch-vercel-projects', async () => {
   try {
@@ -287,7 +297,7 @@ ipcMain.handle('delete-vercel-project', async (_event, projectId: string) => {
       }
     )
 
-    if (!response.ok) {
+    if (!response.ok && response.status !== 404) {
       const errorBody = await response.text()
       return { success: false, error: `API error: ${response.status} ${errorBody}` }
     }

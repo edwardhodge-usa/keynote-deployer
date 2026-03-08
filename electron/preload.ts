@@ -9,6 +9,7 @@ export interface ElectronAPI {
   saveSettings: (settings: Partial<AppSettings>) => Promise<IpcResponse<void>>
   detectVercelToken: () => Promise<IpcResponse<TokenDetection>>
   loadHistory: () => Promise<IpcResponse<HistoryEntry[]>>
+  removeHistoryEntry: (id: string) => Promise<IpcResponse<void>>
   fetchVercelProjects: () => Promise<IpcResponse<VercelProjectExtended[]>>
   deleteVercelProject: (projectId: string) => Promise<IpcResponse<void>>
   openUrl: (url: string) => Promise<void>
@@ -36,6 +37,8 @@ const electronAPI: ElectronAPI = {
   detectVercelToken: () => ipcRenderer.invoke('detect-vercel-token'),
 
   loadHistory: () => ipcRenderer.invoke('load-history'),
+
+  removeHistoryEntry: (id: string) => ipcRenderer.invoke('remove-history-entry', id),
 
   fetchVercelProjects: () => ipcRenderer.invoke('fetch-vercel-projects'),
 
