@@ -17,6 +17,8 @@ Update this file after every correction.
 **General** - Keynote exports images as low-res 266x150 thumbnails -> HiDPI fixes only help text/vectors; workaround is save images as PDF before inserting into Keynote
 **General** - All 7 HiDPI fixes are idempotent -> Re-processing an already-patched file is safe, no need to check
 **2026-03-08** - `electron-builder` codesign fails with "resource fork, Finder information, or similar detritus not allowed" when building inside iCloud Drive -> Build with output dir outside iCloud: `npx electron-builder --config.directories.output=/tmp/keynote-deployer-release`
+**2026-03-08** - Vercel truncates long project subdomains (e.g. 36-char name → 30-char) → Never construct URL as `${name}.vercel.app`; read actual domain from `targets.production.alias` via Vercel API
+**2026-03-08** - Projects view showed all team projects (including imaginelab-portal) → Filter by cross-referencing with local `history.json` deployed project names
 
 ## Key Commands
 ```bash
