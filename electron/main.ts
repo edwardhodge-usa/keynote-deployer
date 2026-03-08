@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, clipboard, nativeTheme } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import path from 'path'
 import { loadSettings, saveSettings, loadHistory, addHistoryEntry, removeHistoryEntry, validateKeynoteFolder, detectVercelToken } from './fileOperations'
 import { processKeynoteFolder } from './keynoteProcessor'
@@ -39,6 +40,11 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow()
+
+  // Auto-updater — check for updates silently
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+  autoUpdater.checkForUpdatesAndNotify()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
