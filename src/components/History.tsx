@@ -74,8 +74,13 @@ export default function History() {
           </div>
         ) : entries.length === 0 ? (
           <div className="text-center py-12">
-            <div className="text-4xl mb-3 text-gray-300 dark:text-gray-600">{'\u23F3'}</div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <div className="mb-3 flex justify-center">
+              <svg className="w-10 h-10 text-gray-300 dark:text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12,6 12,12 16,14" />
+              </svg>
+            </div>
+            <p className="text-[15px] text-gray-500 dark:text-gray-400">
               No deployments yet. Deploy your first Keynote presentation!
             </p>
           </div>
@@ -85,11 +90,11 @@ export default function History() {
               <div key={entry.id} className="card p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold truncate">{entry.title}</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    <h3 className="text-[15px] font-semibold truncate">{entry.title}</h3>
+                    <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-0.5">
                       {entry.projectName} &middot; {entry.slideCount} slides &middot; {entry.fixesApplied} fixes
                     </p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    <p className="text-[13px] text-gray-400 dark:text-gray-500 mt-1">
                       {formatDate(entry.date)}
                     </p>
                   </div>
@@ -142,19 +147,19 @@ export default function History() {
                 </div>
 
                 {confirmingDelete === entry.id && (
-                  <p className="text-xs text-red-400 mt-2">
+                  <p className="text-[13px] text-red-400 mt-2">
                     This will permanently delete {entry.projectName}.vercel.app
                   </p>
                 )}
 
                 {deleteError[entry.id] && (
-                  <p className="text-xs text-red-400 mt-2">
+                  <p className="text-[13px] text-red-400 mt-2">
                     {deleteError[entry.id]} — removed from history
                   </p>
                 )}
 
                 <div className="mt-2 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700/50">
-                  <p className="text-xs font-mono text-gray-600 dark:text-gray-400 truncate">
+                  <p className="text-[13px] font-mono text-gray-600 dark:text-gray-400 truncate">
                     {entry.url}
                   </p>
                 </div>

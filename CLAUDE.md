@@ -16,6 +16,7 @@ Update this file after every correction.
 <!-- Format: **[Date]** - Issue -> Solution -->
 **General** - Keynote exports images as low-res 266x150 thumbnails -> HiDPI fixes only help text/vectors; workaround is save images as PDF before inserting into Keynote
 **General** - All 7 HiDPI fixes are idempotent -> Re-processing an already-patched file is safe, no need to check
+**2026-03-08** - `electron-builder` codesign fails with "resource fork, Finder information, or similar detritus not allowed" when building inside iCloud Drive -> Build with output dir outside iCloud: `npx electron-builder --config.directories.output=/tmp/keynote-deployer-release`
 
 ## Key Commands
 ```bash

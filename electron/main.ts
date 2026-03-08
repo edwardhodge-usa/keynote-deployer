@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, clipboard, nativeTheme } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, dialog, shell, clipboard, nativeTheme } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import path from 'path'
 import { loadSettings, saveSettings, loadHistory, addHistoryEntry, removeHistoryEntry, validateKeynoteFolder, detectVercelToken } from './fileOperations'
@@ -13,12 +13,16 @@ let mainWindow: BrowserWindow | null = null
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1100,
-    height: 750,
+    height: 1000,
     minWidth: 900,
     minHeight: 600,
     titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 20, y: 22 },
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#2c2c2e' : '#ffffff',
+    trafficLightPosition: { x: 16, y: 16 },
+    vibrancy: 'sidebar',
+    visualEffectState: 'active',
+    backgroundColor: '#00000000',
+    roundedCorners: true,
+    tabbingIdentifier: 'keynote-deployer',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -38,8 +42,91 @@ function createWindow() {
   })
 }
 
+function buildMenu(win: BrowserWindow): void {
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        {
+          label: 'Settings\u2026',
+          accelerator: 'Cmd+,',
+          click: () => win.webContents.send('navigate', 'settings'),
+        },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Deployment',
+          accelerator: 'Cmd+N',
+          click: () => win.webContents.send('navigate', 'deploy'),
+        },
+        { type: 'separator' },
+        { role: 'close' },
+      ],
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { type: 'separator' },
+        { role: 'front' },
+      ],
+    },
+    {
+      role: 'help',
+      submenu: [
+        {
+          label: 'Keynote Deployer Help',
+          click: () => shell.openExternal('https://github.com/edwardhodge-usa/keynote-deployer'),
+        },
+      ],
+    },
+  ]
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
 app.whenReady().then(() => {
   createWindow()
+  if (mainWindow) buildMenu(mainWindow)
 
   // Auto-updater — check for updates silently
   autoUpdater.autoDownload = true
@@ -49,15 +136,7 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
-    }
-  })
-
-  // Listen for system theme changes
-  nativeTheme.on('updated', () => {
-    if (mainWindow) {
-      mainWindow.webContents.send('theme-changed', {
-        shouldUseDarkColors: nativeTheme.shouldUseDarkColors,
-      })
+      if (mainWindow) buildMenu(mainWindow)
     }
   })
 })
@@ -268,20 +347,36 @@ ipcMain.handle('fetch-vercel-projects', async () => {
     }
 
     const data = await response.json()
-    const projects = (data.projects || []).map((p: any) => ({
-      id: p.id,
-      name: p.name,
-      accountId: p.accountId,
-      createdAt: p.createdAt,
-      updatedAt: p.updatedAt,
-      latestDeployment: p.latestDeployments?.[0] ? {
-        url: p.latestDeployments[0].url,
-        createdAt: p.latestDeployments[0].createdAt,
-        state: p.latestDeployments[0].readyState || p.latestDeployments[0].state,
-      } : undefined,
-    }))
 
-    return { success: true, data: projects }
+    // Only show projects that were deployed by Keynote Deployer
+    const history = await loadHistory()
+    const deployedProjectNames = new Set(history.map((h: any) => h.projectName))
+
+    const allProjects = (data.projects || [])
+      .filter((p: any) => deployedProjectNames.has(p.name))
+      .map((p: any) => {
+        // Get the actual .vercel.app domain (may be truncated for long names)
+        const prodAliases: string[] = p.targets?.production?.alias || []
+        const vercelDomain = prodAliases.find((a: string) =>
+          a.endsWith('.vercel.app') && !a.includes('-edward-hodges-')
+        ) || prodAliases.find((a: string) => a.endsWith('.vercel.app'))
+
+        return {
+          id: p.id,
+          name: p.name,
+          accountId: p.accountId,
+          createdAt: p.createdAt,
+          updatedAt: p.updatedAt,
+          productionUrl: vercelDomain || `${p.name}.vercel.app`,
+          latestDeployment: p.latestDeployments?.[0] ? {
+            url: p.latestDeployments[0].url,
+            createdAt: p.latestDeployments[0].createdAt,
+            state: p.latestDeployments[0].readyState || p.latestDeployments[0].state,
+          } : undefined,
+        }
+      })
+
+    return { success: true, data: allProjects }
   } catch (error) {
     return { success: false, error: String(error) }
   }
@@ -312,6 +407,11 @@ ipcMain.handle('delete-vercel-project', async (_event, projectId: string) => {
   } catch (error) {
     return { success: false, error: String(error) }
   }
+})
+
+// Get app version from package.json
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion()
 })
 
 // Open URL in default browser

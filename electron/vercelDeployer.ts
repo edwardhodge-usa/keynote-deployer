@@ -132,16 +132,33 @@ export async function deployToVercel(
 
     // CLI outputs the URL on stdout or stderr
     const output = (stdout + '\n' + stderr).trim()
-    const urlMatch = output.match(/https:\/\/[^\s]+\.vercel\.app/g)
-    const deployUrl = urlMatch ? urlMatch[urlMatch.length - 1] : ''
 
     // Verify deployment succeeded (look for "Aliased:" or production URL)
     if (!output.includes('Aliased:') && !output.includes('Production:')) {
       throw new Error(`Deployment may have failed. Output: ${output.slice(0, 500)}`)
     }
 
-    // Construct the clean production URL
-    const prodUrl = `https://${projectName}.vercel.app`
+    // Get the actual production domain from Vercel API
+    // (Vercel may truncate long project names in .vercel.app subdomains)
+    let prodUrl = `https://${projectName}.vercel.app`
+    try {
+      const projectResponse = await fetch(
+        `https://api.vercel.com/v9/projects/${encodeURIComponent(project.id)}?teamId=${teamId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (projectResponse.ok) {
+        const projectData = await projectResponse.json()
+        const prodAliases: string[] = projectData.targets?.production?.alias || []
+        const vercelDomain = prodAliases.find((a: string) =>
+          a.endsWith('.vercel.app') && !a.includes('-edward-hodges-')
+        ) || prodAliases.find((a: string) => a.endsWith('.vercel.app'))
+        if (vercelDomain) {
+          prodUrl = `https://${vercelDomain}`
+        }
+      }
+    } catch {
+      // Fall back to constructed URL if API call fails
+    }
 
     onProgress({ id: 13, label: 'Deploy', detail: 'Deployment complete', status: 'completed' })
 

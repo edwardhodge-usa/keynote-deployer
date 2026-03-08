@@ -1,11 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { AppSettings } from '../types'
 
-interface SettingsProps {
-  onThemeChange: (theme: 'light' | 'dark' | 'system') => void
-}
-
-export default function Settings({ onThemeChange }: SettingsProps) {
+export default function Settings() {
   const [settings, setSettings] = useState<AppSettings>({
     vercelToken: '',
     vercelTeamId: 'team_E1wAzl9zyAPrlGzyjmcXNuxd',
@@ -41,10 +37,6 @@ export default function Settings({ onThemeChange }: SettingsProps) {
     await window.electron.saveSettings(merged)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
-
-    if (updates.theme) {
-      onThemeChange(updates.theme)
-    }
   }
 
   const detectToken = async () => {
@@ -83,14 +75,14 @@ export default function Settings({ onThemeChange }: SettingsProps) {
         <div className="max-w-lg space-y-8">
           {/* Vercel Configuration */}
           <section>
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-4">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-4">
               Vercel
             </h2>
 
             <div className="card p-5 space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-sm font-medium">Auth Token</label>
+                  <label className="text-[15px] font-medium">Auth Token</label>
                   <div className="flex items-center gap-2">
                     {tokenStatus === 'valid' && (
                       <span className="badge badge-success">Connected</span>
@@ -103,7 +95,7 @@ export default function Settings({ onThemeChange }: SettingsProps) {
                 <div className="flex gap-2">
                   <input
                     type="password"
-                    className="input font-mono text-sm flex-1"
+                    className="input font-mono text-[13px] flex-1"
                     value={settings.vercelToken}
                     onChange={(e) => save({ vercelToken: e.target.value })}
                     placeholder="Enter Vercel auth token..."
@@ -116,16 +108,16 @@ export default function Settings({ onThemeChange }: SettingsProps) {
                     {detecting ? 'Detecting...' : 'Auto-Detect'}
                   </button>
                 </div>
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-[13px] text-gray-400 mt-1">
                   Auto-detect reads from Vercel CLI config, or paste your token manually.
                 </p>
               </div>
 
               <div>
-                <label className="text-sm font-medium block mb-1.5">Team ID</label>
+                <label className="text-[15px] font-medium block mb-1.5">Team ID</label>
                 <input
                   type="text"
-                  className="input font-mono text-sm"
+                  className="input font-mono text-[13px]"
                   value={settings.vercelTeamId}
                   onChange={(e) => save({ vercelTeamId: e.target.value })}
                 />
@@ -135,39 +127,42 @@ export default function Settings({ onThemeChange }: SettingsProps) {
 
           {/* Deployment Preferences */}
           <section>
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-4">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-4">
               Deployment
             </h2>
 
             <div className="card p-5 space-y-4">
               <div>
-                <label className="text-sm font-medium block mb-1.5">Project Name Prefix</label>
+                <label className="text-[15px] font-medium block mb-1.5">Project Name Prefix</label>
                 <input
                   type="text"
-                  className="input font-mono text-sm"
+                  className="input font-mono text-[13px]"
                   value={settings.projectNamePrefix}
                   onChange={(e) => save({ projectNamePrefix: e.target.value })}
                   placeholder="e.g. ils-"
                 />
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-[13px] text-gray-400 mt-1">
                   Optional prefix added to auto-generated project names.
                 </p>
               </div>
 
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">Auto-copy URL</p>
-                  <p className="text-xs text-gray-400">Copy deployment URL to clipboard after deploy</p>
+                  <p className="text-[15px] font-medium">Auto-copy URL</p>
+                  <p className="text-[13px] text-gray-400">Copy deployment URL to clipboard after deploy</p>
                 </div>
                 <button
                   onClick={() => save({ autoCopyUrl: !settings.autoCopyUrl })}
-                  className={`relative w-11 h-6 rounded-full transition-colors ${
+                  className={`relative w-9 h-[22px] rounded-full transition-colors duration-250 flex-shrink-0 ${
                     settings.autoCopyUrl ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'
                   }`}
+                  role="switch"
+                  aria-checked={settings.autoCopyUrl}
+                  aria-label="Auto-copy URL"
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                      settings.autoCopyUrl ? 'translate-x-5' : ''
+                    className={`absolute top-[2px] left-[2px] w-[18px] h-[18px] bg-white rounded-full shadow-sm transition-transform duration-250 ${
+                      settings.autoCopyUrl ? 'translate-x-[14px]' : ''
                     }`}
                   />
                 </button>
@@ -175,45 +170,24 @@ export default function Settings({ onThemeChange }: SettingsProps) {
 
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">Runtime Verification</p>
-                  <p className="text-xs text-gray-400">Use browser automation to test deployed presentations</p>
+                  <p className="text-[15px] font-medium">Runtime Verification</p>
+                  <p className="text-[13px] text-gray-400">Use browser automation to test deployed presentations</p>
                 </div>
                 <button
                   onClick={() => save({ enableRuntimeVerification: !settings.enableRuntimeVerification })}
-                  className={`relative w-11 h-6 rounded-full transition-colors ${
+                  className={`relative w-9 h-[22px] rounded-full transition-colors duration-250 flex-shrink-0 ${
                     settings.enableRuntimeVerification ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'
                   }`}
+                  role="switch"
+                  aria-checked={settings.enableRuntimeVerification}
+                  aria-label="Runtime verification"
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                      settings.enableRuntimeVerification ? 'translate-x-5' : ''
+                    className={`absolute top-[2px] left-[2px] w-[18px] h-[18px] bg-white rounded-full shadow-sm transition-transform duration-250 ${
+                      settings.enableRuntimeVerification ? 'translate-x-[14px]' : ''
                     }`}
                   />
                 </button>
-              </div>
-            </div>
-          </section>
-
-          {/* Appearance */}
-          <section>
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-4">
-              Appearance
-            </h2>
-
-            <div className="card p-5">
-              <label className="text-sm font-medium block mb-2">Theme</label>
-              <div className="flex gap-2">
-                {(['system', 'light', 'dark'] as const).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => save({ theme: t })}
-                    className={`btn btn-sm flex-1 capitalize ${
-                      settings.theme === t ? 'btn-primary' : 'btn-secondary'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
               </div>
             </div>
           </section>

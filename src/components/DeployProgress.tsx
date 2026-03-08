@@ -43,17 +43,17 @@ export default function DeployProgress({ steps }: DeployProgressProps) {
             step.status === 'active' ? 'bg-blue-50 dark:bg-blue-900/20' : ''
           }`}
         >
-          <span className={`mt-0.5 text-sm font-mono w-5 text-center ${statusColor(step.status)}`}>
+          <span className={`mt-0.5 text-[15px] font-mono w-5 text-center ${statusColor(step.status)}`}>
             {statusIcon(step.status)}
           </span>
           <div className="flex-1 min-w-0">
-            <p className={`text-sm ${
+            <p className={`text-[15px] ${
               step.status === 'pending' ? 'text-gray-400 dark:text-gray-600' : 'text-gray-800 dark:text-gray-200'
             }`}>
               {step.label}
             </p>
             {step.detail && step.status !== 'pending' && (
-              <p className={`text-xs truncate ${detailColor(step.status)}`}>
+              <p className={`text-[13px] truncate ${detailColor(step.status)}`}>
                 {step.detail}
               </p>
             )}

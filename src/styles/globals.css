@@ -19,11 +19,25 @@
     @apply text-gray-900 dark:text-gray-100;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  input, textarea, [contenteditable] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  :focus { outline: none; }
+  :focus-visible {
+    outline: 3px solid #0a84ff;
+    outline-offset: 2px;
+    border-radius: 4px;
   }
 
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
   }
 
   ::-webkit-scrollbar-track {
@@ -33,7 +47,7 @@
   ::-webkit-scrollbar-thumb {
     @apply bg-gray-400 dark:bg-gray-600 rounded-full;
     border: 2px solid transparent;
-    background-clip: padding-box;
+    background-clip: content-box;
   }
 
   ::-webkit-scrollbar-thumb:hover {
@@ -42,18 +56,49 @@
 
   .window-drag {
     -webkit-app-region: drag;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .window-drag button,
+  .window-drag input,
+  .window-drag a,
+  .window-drag [role="button"] {
+    -webkit-app-region: no-drag;
   }
 
   .window-no-drag {
     -webkit-app-region: no-drag;
   }
+
+  button {
+    cursor: default;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
 }
 
 @layer components {
   .btn {
-    @apply px-4 py-2 rounded-lg font-medium transition-all duration-150;
-    @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
-    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply px-3 py-1 rounded-lg font-medium transition-all duration-150;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2;
+    min-height: 24px;
+    cursor: default;
+    @apply disabled:pointer-events-none;
+    opacity: var(--btn-opacity, 1);
+  }
+
+  .btn:disabled {
+    --btn-opacity: 0.4;
+  }
+
+  .btn:active {
+    transform: scale(0.98);
   }
 
   .btn-primary {
@@ -78,21 +123,24 @@
   }
 
   .btn-sm {
-    @apply px-3 py-1.5 text-sm;
+    @apply px-2.5 py-0.5 text-sm;
+    min-height: 20px;
   }
 
   .btn-lg {
-    @apply px-6 py-3 text-lg;
+    @apply px-4 py-1.5 text-base;
+    min-height: 32px;
   }
 
   .input {
-    @apply w-full px-3 py-2 rounded-lg border;
+    @apply w-full px-2 py-1 rounded-lg border;
     @apply bg-white dark:bg-gray-800;
     @apply border-border-light dark:border-border-dark;
     @apply text-gray-900 dark:text-gray-100;
     @apply placeholder-gray-500 dark:placeholder-gray-400;
     @apply focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent;
     @apply transition-all duration-150;
+    min-height: 24px;
   }
 
   .card {
@@ -102,7 +150,7 @@
   }
 
   .badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
   }
 
   .badge-success {
@@ -122,6 +170,10 @@
     animation: spin 0.6s linear infinite;
   }
 
+  .spinner-sm {
+    @apply w-4 h-4;
+  }
+
   @keyframes spin {
     to {
       transform: rotate(360deg);
@@ -129,11 +181,13 @@
   }
 
   .nav-item {
-    @apply flex items-center gap-3 px-4 py-2.5 rounded-lg;
+    @apply flex items-center gap-2 px-3 py-1.5 rounded-lg;
     @apply text-gray-700 dark:text-gray-300;
-    @apply hover:bg-gray-200 dark:hover:bg-gray-700;
-    @apply transition-all duration-150;
-    @apply cursor-pointer select-none;
+    @apply hover:bg-gray-200/60 dark:hover:bg-gray-700/60;
+    @apply transition-colors duration-150;
+    @apply select-none;
+    cursor: default;
+    min-height: 28px;
   }
 
   .nav-item-active {
@@ -141,9 +195,14 @@
     @apply hover:bg-primary-hover;
   }
 
+  /* Unfocused window: selected sidebar item goes gray */
+  .app-shell:not(:focus-within) .nav-item-active {
+    @apply bg-gray-300/60 dark:bg-gray-600/60 text-gray-900 dark:text-gray-100;
+  }
+
   .glass {
     @apply bg-white/80 dark:bg-gray-900/80;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
   }
 }

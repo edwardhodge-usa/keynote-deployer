@@ -12,11 +12,13 @@ export interface ElectronAPI {
   removeHistoryEntry: (id: string) => Promise<IpcResponse<void>>
   fetchVercelProjects: () => Promise<IpcResponse<VercelProjectExtended[]>>
   deleteVercelProject: (projectId: string) => Promise<IpcResponse<void>>
+  getAppVersion: () => Promise<string>
   openUrl: (url: string) => Promise<void>
   copyToClipboard: (text: string) => Promise<void>
   getSystemTheme: () => Promise<IpcResponse<ThemeState>>
   onProcessingProgress: (callback: (progress: ProcessingProgress) => void) => void
   onThemeChanged: (callback: (theme: ThemeState) => void) => void
+  onNavigate: (callback: (tab: string) => void) => void
   removeAllListeners: (channel: string) => void
 }
 
@@ -44,6 +46,8 @@ const electronAPI: ElectronAPI = {
 
   deleteVercelProject: (projectId: string) => ipcRenderer.invoke('delete-vercel-project', projectId),
 
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+
   openUrl: (url: string) => ipcRenderer.invoke('open-url', url),
 
   copyToClipboard: (text: string) => ipcRenderer.invoke('copy-to-clipboard', text),
@@ -56,6 +60,10 @@ const electronAPI: ElectronAPI = {
 
   onThemeChanged: (callback: (theme: ThemeState) => void) => {
     ipcRenderer.on('theme-changed', (_event, theme) => callback(theme))
+  },
+
+  onNavigate: (callback: (tab: string) => void) => {
+    ipcRenderer.on('navigate', (_event, tab) => callback(tab))
   },
 
   removeAllListeners: (channel: string) => {

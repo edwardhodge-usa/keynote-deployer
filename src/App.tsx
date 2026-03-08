@@ -8,50 +8,20 @@ import type { TabId } from './types'
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('deploy')
-  const [isDark, setIsDark] = useState(false)
   const [selectedProject, setSelectedProject] = useState<string | undefined>(undefined)
 
   useEffect(() => {
-    // Get initial theme
-    window.electron.getSystemTheme().then((res) => {
-      if (res.success && res.data) {
-        setIsDark(res.data.shouldUseDarkColors)
-      }
-    })
-
-    // Listen for theme changes
-    window.electron.onThemeChanged((theme) => {
-      setIsDark(theme.shouldUseDarkColors)
-    })
-
-    // Load saved theme preference
-    window.electron.loadSettings().then((res) => {
-      if (res.success && res.data) {
-        const pref = res.data.theme
-        if (pref === 'dark') setIsDark(true)
-        else if (pref === 'light') setIsDark(false)
-        // 'system' uses the detected value
+    // Listen for menu bar navigation (Cmd+, for Settings, Cmd+N for Deploy)
+    window.electron.onNavigate((tab: string) => {
+      if (tab === 'deploy' || tab === 'projects' || tab === 'history' || tab === 'settings') {
+        setActiveTab(tab as TabId)
       }
     })
 
     return () => {
-      window.electron.removeAllListeners('theme-changed')
+      window.electron.removeAllListeners('navigate')
     }
   }, [])
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', isDark)
-  }, [isDark])
-
-  const handleThemeChange = (theme: 'light' | 'dark' | 'system') => {
-    if (theme === 'dark') setIsDark(true)
-    else if (theme === 'light') setIsDark(false)
-    else {
-      window.electron.getSystemTheme().then((res) => {
-        if (res.success && res.data) setIsDark(res.data.shouldUseDarkColors)
-      })
-    }
-  }
 
   const handleProjectSelect = (projectName: string) => {
     setSelectedProject(projectName)
@@ -59,13 +29,13 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-full">
-      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} isDark={isDark} />
+    <div className="app-shell flex h-full">
+      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
       <main className="flex-1 overflow-y-auto">
         {activeTab === 'deploy' && <Deploy selectedProject={selectedProject} onProjectUsed={() => setSelectedProject(undefined)} />}
         {activeTab === 'projects' && <Projects onSelectProject={handleProjectSelect} />}
         {activeTab === 'history' && <History />}
-        {activeTab === 'settings' && <Settings onThemeChange={handleThemeChange} />}
+        {activeTab === 'settings' && <Settings />}
       </main>
     </div>
   )

@@ -171,30 +171,36 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
         {phase === 'select' && (
           <div className="max-w-lg mx-auto">
             <h1 className="text-2xl font-semibold mb-2">Deploy Keynote</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+            <p className="text-[15px] text-gray-500 dark:text-gray-400 mb-6">
               Select a Keynote HTML export folder to process and deploy.
             </p>
 
             <div
               onDrop={handleDrop}
               onDragOver={handleDragOver}
-              className="card p-12 text-center cursor-pointer hover:border-primary transition-colors"
+              className="card p-12 text-center hover:border-primary transition-colors"
               onClick={selectFolder}
             >
-              <div className="text-4xl mb-4 text-gray-400 dark:text-gray-500">
-                {validating ? '' : '\uD83D\uDCC1'}
+              <div className="mb-4 flex justify-center">
+                {validating ? null : (
+                  <svg className="w-10 h-10 text-gray-400 dark:text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                    <line x1="12" y1="11" x2="12" y2="17" />
+                    <polyline points="9,14 12,11 15,14" />
+                  </svg>
+                )}
               </div>
               {validating ? (
                 <>
                   <span className="spinner text-primary mb-3 inline-block" />
-                  <p className="text-sm text-gray-500">Validating folder...</p>
+                  <p className="text-[15px] text-gray-500">Validating folder...</p>
                 </>
               ) : (
                 <>
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <p className="text-[15px] font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Click to browse or drag & drop
                   </p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                  <p className="text-[13px] text-gray-400 dark:text-gray-500">
                     Select the exported Keynote folder containing assets/player/main.js
                   </p>
                 </>
@@ -203,7 +209,7 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
 
             {error && (
               <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                <p className="text-[15px] text-red-600 dark:text-red-400">{error}</p>
               </div>
             )}
           </div>
@@ -215,26 +221,26 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
             <h1 className="text-2xl font-semibold mb-6">Confirm & Deploy</h1>
 
             <div className="card p-5 mb-6 space-y-3">
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between text-[15px]">
                 <span className="text-gray-500 dark:text-gray-400">Title</span>
                 <span className="font-medium">{metadata.title}</span>
               </div>
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between text-[15px]">
                 <span className="text-gray-500 dark:text-gray-400">Slides</span>
                 <span className="font-medium">{metadata.slideCount}</span>
               </div>
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between text-[15px]">
                 <span className="text-gray-500 dark:text-gray-400">Dimensions</span>
                 <span className="font-medium">{metadata.width} x {metadata.height}</span>
               </div>
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between text-[15px]">
                 <span className="text-gray-500 dark:text-gray-400">Folder</span>
-                <span className="font-mono text-xs truncate max-w-[280px]">{folderPath}</span>
+                <span className="font-mono text-[13px] truncate max-w-[280px]">{folderPath}</span>
               </div>
             </div>
 
             <div className="mb-6">
-              <label className="block text-sm font-medium mb-1.5">Project Name</label>
+              <label className="block text-[15px] font-medium mb-1.5">Project Name</label>
               <input
                 type="text"
                 className="input font-mono"
@@ -243,9 +249,9 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
                 onBlur={(e) => setProjectName(toKebabCase(e.target.value))}
                 placeholder="my-project-name"
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-[13px] text-gray-400 mt-1">
                 {selectedProject
-                  ? `⚠ Updating existing project: ${selectedProject}`
+                  ? `Updating existing project: ${selectedProject}`
                   : projectName
                   ? `URL will be: https://${projectName}.vercel.app`
                   : 'Lowercase letters, numbers, and hyphens only'
@@ -272,7 +278,7 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
         {phase === 'processing' && (
           <div className="max-w-lg mx-auto">
             <h1 className="text-2xl font-semibold mb-2">Deploying...</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+            <p className="text-[15px] text-gray-500 dark:text-gray-400 mb-6">
               Applying fixes and deploying to Vercel.
             </p>
             <div className="card p-4">
@@ -285,11 +291,16 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
         {phase === 'complete' && result && (
           <div className="max-w-lg mx-auto">
             <div className="text-center mb-6">
-              <div className="text-5xl mb-3">&#10003;</div>
+              <div className="mb-3 flex justify-center">
+                <svg className="w-12 h-12 text-green-500 dark:text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="8,12 11,15 16,9" />
+                </svg>
+              </div>
               <h1 className="text-2xl font-semibold text-green-600 dark:text-green-400">
                 Deployed Successfully
               </h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-[15px] text-gray-500 dark:text-gray-400 mt-1">
                 {result.fixesApplied} fixes applied, {result.fixesSkipped} skipped
               </p>
             </div>
@@ -297,30 +308,32 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
             {/* Verification Results */}
             {result.verification && (
               <div className="card p-4 mb-6">
-                <h3 className="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">
+                <h3 className="text-[15px] font-semibold mb-3 text-gray-700 dark:text-gray-300">
                   Deployment Verification
                 </h3>
 
                 {result.verification.success ? (
-                  <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm mb-3">
-                    <span>✓</span>
+                  <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-[15px] mb-3">
+                    <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3,8 7,12 13,4" /></svg>
                     <span>All {result.verification.totalFixesFound} fixes verified in deployed files</span>
                   </div>
                 ) : (
                   <div className="mb-3">
-                    <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm mb-2">
-                      <span>⚠</span>
+                    <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-[15px] mb-2">
+                      <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8,2 L14.5,13 H1.5 Z" /><line x1="8" y1="6.5" x2="8" y2="9.5" /><circle cx="8" cy="11.5" r="0.5" fill="currentColor" /></svg>
                       <span>{result.verification.totalFixesMissing} fixes missing in deployment</span>
                     </div>
                   </div>
                 )}
 
-                <div className="space-y-1.5 text-xs">
+                <div className="space-y-1.5 text-[13px]">
                   {result.verification.fixes.map((fix) => (
                     <div key={fix.fixNumber} className="flex items-center gap-2">
-                      <span className={fix.found ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                        {fix.found ? '✓' : '✗'}
-                      </span>
+                      {fix.found ? (
+                        <svg className="w-3.5 h-3.5 flex-shrink-0 text-green-600 dark:text-green-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3,8 7,12 13,4" /></svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5 flex-shrink-0 text-red-600 dark:text-red-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="4" x2="12" y2="12" /><line x1="12" y1="4" x2="4" y2="12" /></svg>
+                      )}
                       <span className={fix.found ? 'text-gray-600 dark:text-gray-400' : 'text-red-600 dark:text-red-400'}>
                         Fix {fix.fixNumber}: {fix.name}
                       </span>
@@ -329,59 +342,66 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
                 </div>
 
                 {!result.verification.indexHtmlVerified && (
-                  <div className="mt-3 text-xs text-amber-600 dark:text-amber-400">
-                    ⚠ index.html verification failed
+                  <div className="mt-3 flex items-center gap-1.5 text-[13px] text-amber-600 dark:text-amber-400">
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8,2 L14.5,13 H1.5 Z" /><line x1="8" y1="6.5" x2="8" y2="9.5" /><circle cx="8" cy="11.5" r="0.5" fill="currentColor" /></svg>
+                    <span>index.html verification failed</span>
                   </div>
                 )}
 
                 {/* Runtime Verification Results */}
                 {result.verification.runtime && (
                   <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <h4 className="text-xs font-semibold mb-2 text-gray-600 dark:text-gray-400">
+                    <h4 className="text-[13px] font-semibold mb-2 text-gray-600 dark:text-gray-400">
                       Runtime Testing (Browser Automation)
                     </h4>
 
                     {result.verification.runtime.success ? (
-                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-xs mb-2">
-                        <span>✓</span>
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-[13px] mb-2">
+                        <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3,8 7,12 13,4" /></svg>
                         <span>All runtime checks passed</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-xs mb-2">
-                        <span>⚠</span>
+                      <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-[13px] mb-2">
+                        <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8,2 L14.5,13 H1.5 Z" /><line x1="8" y1="6.5" x2="8" y2="9.5" /><circle cx="8" cy="11.5" r="0.5" fill="currentColor" /></svg>
                         <span>Some runtime issues detected</span>
                       </div>
                     )}
 
-                    <div className="space-y-1 text-xs">
+                    <div className="space-y-1 text-[13px]">
                       <div className="flex items-center gap-2">
-                        <span className={result.verification.runtime.devicePixelRatio === 2 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}>
-                          {result.verification.runtime.devicePixelRatio === 2 ? '✓' : '⚠'}
-                        </span>
+                        {result.verification.runtime.devicePixelRatio === 2 ? (
+                          <svg className="w-3.5 h-3.5 flex-shrink-0 text-green-600 dark:text-green-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3,8 7,12 13,4" /></svg>
+                        ) : (
+                          <svg className="w-3.5 h-3.5 flex-shrink-0 text-amber-600 dark:text-amber-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8,2 L14.5,13 H1.5 Z" /><line x1="8" y1="6.5" x2="8" y2="9.5" /><circle cx="8" cy="11.5" r="0.5" fill="currentColor" /></svg>
+                        )}
                         <span className="text-gray-600 dark:text-gray-400">
                           Device Pixel Ratio: {result.verification.runtime.devicePixelRatio}
                         </span>
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <span className={result.verification.runtime.canvasElements.dprScaling ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}>
-                          {result.verification.runtime.canvasElements.dprScaling ? '✓' : '⚠'}
-                        </span>
+                        {result.verification.runtime.canvasElements.dprScaling ? (
+                          <svg className="w-3.5 h-3.5 flex-shrink-0 text-green-600 dark:text-green-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3,8 7,12 13,4" /></svg>
+                        ) : (
+                          <svg className="w-3.5 h-3.5 flex-shrink-0 text-amber-600 dark:text-amber-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8,2 L14.5,13 H1.5 Z" /><line x1="8" y1="6.5" x2="8" y2="9.5" /><circle cx="8" cy="11.5" r="0.5" fill="currentColor" /></svg>
+                        )}
                         <span className="text-gray-600 dark:text-gray-400">
                           Canvas DPR Scaling: {result.verification.runtime.canvasElements.dprScaling ? 'Active' : 'Not detected'}
                         </span>
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <span className={result.verification.runtime.reRenderTriggered ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}>
-                          {result.verification.runtime.reRenderTriggered ? '✓' : '⚠'}
-                        </span>
+                        {result.verification.runtime.reRenderTriggered ? (
+                          <svg className="w-3.5 h-3.5 flex-shrink-0 text-green-600 dark:text-green-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3,8 7,12 13,4" /></svg>
+                        ) : (
+                          <svg className="w-3.5 h-3.5 flex-shrink-0 text-amber-600 dark:text-amber-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8,2 L14.5,13 H1.5 Z" /><line x1="8" y1="6.5" x2="8" y2="9.5" /><circle cx="8" cy="11.5" r="0.5" fill="currentColor" /></svg>
+                        )}
                         <span className="text-gray-600 dark:text-gray-400">
                           Re-render on navigation: {result.verification.runtime.reRenderTriggered ? 'Working' : 'Not detected'}
                         </span>
                       </div>
 
-                      <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800 text-xxs text-gray-500">
+                      <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800 text-[11px] text-gray-500">
                         Canvas: {result.verification.runtime.canvasElements.sampleWidth}×{result.verification.runtime.canvasElements.sampleHeight}
                         {result.verification.runtime.canvasElements.sampleStyleWidth && ` (styled ${result.verification.runtime.canvasElements.sampleStyleWidth}×${result.verification.runtime.canvasElements.sampleStyleHeight})`}
                       </div>
@@ -396,7 +416,7 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
                 <input
                   type="text"
                   readOnly
-                  className="input font-mono text-sm flex-1"
+                  className="input font-mono text-[13px] flex-1"
                   value={result.url}
                 />
                 <button
@@ -433,7 +453,13 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
         {phase === 'error' && (
           <div className="max-w-lg mx-auto">
             <div className="text-center mb-6">
-              <div className="text-5xl mb-3">&#10007;</div>
+              <div className="mb-3 flex justify-center">
+                <svg className="w-12 h-12 text-red-500 dark:text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="15" y1="9" x2="9" y2="15" />
+                  <line x1="9" y1="9" x2="15" y2="15" />
+                </svg>
+              </div>
               <h1 className="text-2xl font-semibold text-red-600 dark:text-red-400">
                 Deployment Failed
               </h1>
@@ -445,7 +471,7 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
 
             {error && (
               <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 mb-6">
-                <p className="text-sm text-red-600 dark:text-red-400 font-mono">{error}</p>
+                <p className="text-[15px] text-red-600 dark:text-red-400 font-mono">{error}</p>
               </div>
             )}
 

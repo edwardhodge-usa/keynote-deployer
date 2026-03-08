@@ -113,6 +113,7 @@ export interface VercelProjectExtended {
   accountId: string
   createdAt?: number
   updatedAt?: number
+  productionUrl?: string
   latestDeployment?: {
     url: string
     createdAt: number
