@@ -2,7 +2,6 @@
 
 <!--
 Project-specific CLAUDE.md. See ~/CLAUDE.md for global preferences.
-See @../_master/ for shared patterns (Electron, Tailwind, etc.)
 Update this file after every correction.
 -->
 
@@ -55,10 +54,6 @@ npm run electron:build   # Build for production
 - Default team: team_E1wAzl9zyAPrlGzyjmcXNuxd
 - macOS native feel: hidden inset title bar, SF Pro fonts, dark mode
 - Generated index.html includes loading overlay, nav controls, slide counter
-
-## Shared Patterns
-- Electron architecture: @../_master/electron-patterns.md
-- macOS styling: @../_master/tailwind-macos-theme.md
 
 ## Update Protocol
 When Claude makes a mistake: "Update CLAUDE.md so you don't make that mistake again."
