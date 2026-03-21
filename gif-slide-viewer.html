@@ -24,12 +24,29 @@
       border-bottom: 1px solid #222;
       padding: 14px 24px;
       text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
     }
     header h1 {
       font-size: 16px;
       font-weight: 600;
       color: #e5e5e5;
       letter-spacing: -0.2px;
+    }
+    #loadAnotherBtn {
+      position: absolute;
+      right: 24px;
+      padding: 5px 12px;
+      font-size: 12px;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      color: #999;
+    }
+    #loadAnotherBtn:hover {
+      background: #222;
+      color: #ccc;
     }
 
     /* Drop Zone */
@@ -219,6 +236,7 @@
 
   <header>
     <h1>Keynote GIF Slide Viewer</h1>
+    <button id="loadAnotherBtn" style="display:none;" onclick="loadAnother()">Load Another GIF</button>
   </header>
 
   <!-- Drop Zone -->
@@ -373,14 +391,23 @@
         updateProgress('Preparing to parse...', 0);
 
         // Hand off to parser
-        loadAndParseGIF(gifBuffer).then(result => {
-          parsedData = result;
-          slideMap = result.slides;
-          initViewer();
-        }).catch(err => {
+        try {
+          loadAndParseGIF(gifBuffer).then(result => {
+            parsedData = result;
+            slideMap = result.slides;
+            initViewer();
+          }).catch(err => {
+            loading.style.display = 'none';
+            dropZone.style.display = '';
+            showError('Failed to parse GIF: ' + err.message);
+            console.error(err);
+          });
+        } catch (err) {
+          loading.style.display = 'none';
+          dropZone.style.display = '';
           showError('Failed to parse GIF: ' + err.message);
           console.error(err);
-        });
+        }
       };
 
       reader.onerror = function() {
@@ -395,6 +422,10 @@
       updateProgress('Parsing GIF structure...', 0);
       const gif = gifuct.parseGIF(arrayBuffer);
       const rawFrames = gifuct.decompressFrames(gif, true);
+
+      if (!rawFrames || rawFrames.length === 0) {
+        throw new Error('No image frames found in GIF.');
+      }
 
       const gifWidth = gif.lsd.width;
       const gifHeight = gif.lsd.height;
@@ -511,6 +542,16 @@
         }
       }
 
+      // Fallback: if no hold segments found, treat every frame as a single slide
+      if (slides.length === 0) {
+        slides.push({
+          restFrame: 0,
+          holdStart: 0,
+          holdEnd: frames.length - 1,
+          transitionFrames: null
+        });
+      }
+
       if (slides.length < 2) {
         showWarning('Could not detect slide boundaries. Try re-exporting with longer auto-advance timing (1-2 seconds).');
       }
@@ -524,26 +565,32 @@
 
     // ── Viewer ──
     function initViewer() {
-      // Hide loading, show viewer
+      // Hide loading, show viewer + load another button
       document.getElementById('loading').style.display = 'none';
       document.getElementById('viewer').style.display = 'flex';
       document.getElementById('canvasContainer').style.display = 'block';
+      document.getElementById('loadAnotherBtn').style.display = 'block';
 
       // Set canvas dimensions
       const canvas = document.getElementById('slideCanvas');
       canvas.width = parsedData.width;
       canvas.height = parsedData.height;
 
-      // Build dot strip
+      // Build dot strip (hide if only 1 slide)
       const dotStrip = document.getElementById('dotStrip');
       dotStrip.innerHTML = '';
-      slideMap.forEach((slide, i) => {
-        const dot = document.createElement('button');
-        dot.className = 'dot';
-        dot.title = `Slide ${i + 1}`;
-        dot.onclick = () => jumpToSlide(i);
-        dotStrip.appendChild(dot);
-      });
+      if (slideMap.length > 1) {
+        dotStrip.style.display = 'flex';
+        slideMap.forEach((slide, i) => {
+          const dot = document.createElement('button');
+          dot.className = 'dot';
+          dot.title = `Slide ${i + 1}`;
+          dot.onclick = () => jumpToSlide(i);
+          dotStrip.appendChild(dot);
+        });
+      } else {
+        dotStrip.style.display = 'none';
+      }
 
       // Show first slide
       currentSlideIndex = 0;
@@ -624,6 +671,33 @@
       if (e.key === 'ArrowRight') playNext();
       if (e.key === 'ArrowLeft') playPrev();
     });
+
+    // ── Load Another GIF ──
+    function loadAnother() {
+      // Release GPU memory from ImageBitmaps
+      if (parsedData && parsedData.frames) {
+        parsedData.frames.forEach(bmp => {
+          if (bmp && typeof bmp.close === 'function') bmp.close();
+        });
+      }
+
+      // Reset all state
+      gifBuffer = null;
+      parsedData = null;
+      slideMap = null;
+      currentSlideIndex = 0;
+      isPlaying = false;
+
+      // Hide viewer, show drop zone
+      canvasContainer.style.display = 'none';
+      viewer.style.display = 'none';
+      document.getElementById('loadAnotherBtn').style.display = 'none';
+      dropZone.style.display = '';
+      clearMessages();
+
+      // Reset file input so same file can be re-selected
+      fileInput.value = '';
+    }
   </script>
 
 </body>
