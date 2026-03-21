@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keynote HiDPI Comparison Test</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+    background: #0a0a0a;
+    color: #e5e5e5;
+    min-height: 100vh;
+  }
+
+  .header {
+    padding: 20px 32px;
+    border-bottom: 1px solid #222;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #111;
+  }
+  .header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+  .header .subtitle {
+    font-size: 13px;
+    color: #777;
+  }
+
+  /* Setup panel — shown when no URLs are configured */
+  .setup {
+    max-width: 600px;
+    margin: 80px auto;
+    padding: 32px;
+    background: #161616;
+    border: 1px solid #222;
+    border-radius: 12px;
+  }
+  .setup h2 {
+    font-size: 16px;
+    margin-bottom: 4px;
+  }
+  .setup p {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 24px;
+    line-height: 1.5;
+  }
+  .setup label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 6px;
+    color: #aaa;
+  }
+  .setup input {
+    width: 100%;
+    padding: 10px 12px;
+    background: #0a0a0a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: #e5e5e5;
+    font-size: 14px;
+    margin-bottom: 16px;
+    outline: none;
+    font-family: inherit;
+  }
+  .setup input:focus { border-color: #555; }
+  .setup input::placeholder { color: #444; }
+  .setup button {
+    width: 100%;
+    padding: 12px;
+    background: #fff;
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+    font-family: inherit;
+  }
+  .setup button:hover { background: #ddd; }
+  .setup .hint {
+    font-size: 11px;
+    color: #555;
+    margin-top: 4px;
+    margin-bottom: 16px;
+  }
+
+  /* Comparison view */
+  .comparison { display: none; height: calc(100vh - 61px); }
+  .comparison.active { display: flex; }
+
+  .pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .pane:first-child { border-right: 1px solid #222; }
+
+  .pane-header {
+    padding: 10px 16px;
+    background: #161616;
+    border-bottom: 1px solid #222;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .pane-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .pane-label.icloud { color: #3b82f6; }
+  .pane-label.vercel { color: #22c55e; }
+  .pane-url {
+    font-size: 11px;
+    color: #555;
+    max-width: 50%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pane iframe {
+    flex: 1;
+    width: 100%;
+    border: none;
+    background: #000;
+  }
+
+  /* Overlay mode */
+  .comparison.overlay { position: relative; }
+  .comparison.overlay .pane { position: absolute; inset: 0; }
+  .comparison.overlay .pane:last-child { opacity: 0.5; mix-blend-mode: difference; }
+
+  /* Controls */
+  .controls {
+    display: none;
+    gap: 8px;
+  }
+  .controls.active { display: flex; }
+  .controls button {
+    padding: 6px 12px;
+    background: #222;
+    border: 1px solid #333;
+    border-radius: 6px;
+    color: #ccc;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .controls button:hover { background: #333; }
+  .controls button.active { background: #fff; color: #000; border-color: #fff; }
+
+  .back-btn {
+    padding: 6px 12px;
+    background: #222;
+    border: 1px solid #333;
+    border-radius: 6px;
+    color: #ccc;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+    display: none;
+  }
+  .back-btn.active { display: block; }
+  .back-btn:hover { background: #333; }
+
+  /* Blocked iframe notice */
+  .blocked-notice {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 32px;
+    text-align: center;
+  }
+  .blocked-notice .icon { font-size: 32px; opacity: 0.5; }
+  .blocked-notice p { font-size: 13px; color: #888; max-width: 360px; line-height: 1.5; }
+  .blocked-notice a {
+    color: #3b82f6;
+    text-decoration: none;
+    font-size: 13px;
+    padding: 8px 16px;
+    border: 1px solid #3b82f6;
+    border-radius: 6px;
+  }
+  .blocked-notice a:hover { background: rgba(59,130,246,0.1); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>Keynote HiDPI Comparison</h1>
+    <div class="subtitle">Side-by-side: iCloud Keynote vs Vercel (HiDPI-patched)</div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <div class="controls" id="controls">
+      <button class="active" onclick="setMode('side')">Side by Side</button>
+      <button onclick="setMode('overlay')">Overlay Diff</button>
+    </div>
+    <button class="back-btn" id="backBtn" onclick="showSetup()">Change URLs</button>
+  </div>
+</div>
+
+<!-- Setup form -->
+<div class="setup" id="setup">
+  <h2>Enter your URLs</h2>
+  <p>
+    Paste the iCloud share link from Keynote and the Vercel deployment URL
+    to compare them side by side. This helps verify HiDPI rendering fixes.
+  </p>
+
+  <label for="icloudUrl">iCloud Keynote Share URL</label>
+  <input type="url" id="icloudUrl" placeholder="https://www.icloud.com/keynote/...">
+  <div class="hint">Keynote → Share → Collaborate → Anyone with link → View only</div>
+
+  <label for="vercelUrl">Vercel Deployment URL</label>
+  <input type="url" id="vercelUrl" placeholder="https://your-project.vercel.app">
+  <div class="hint">From your Keynote Deployer history or Vercel dashboard</div>
+
+  <button onclick="startComparison()">Compare</button>
+</div>
+
+<!-- Comparison view -->
+<div class="comparison" id="comparison">
+  <div class="pane">
+    <div class="pane-header">
+      <span class="pane-label icloud">iCloud Keynote (Original)</span>
+      <span class="pane-url" id="icloudDisplay"></span>
+    </div>
+    <div id="icloudPane"></div>
+  </div>
+  <div class="pane">
+    <div class="pane-header">
+      <span class="pane-label vercel">Vercel (HiDPI Patched)</span>
+      <span class="pane-url" id="vercelDisplay"></span>
+    </div>
+    <div id="vercelPane"></div>
+  </div>
+</div>
+
+<script>
+  // Restore from localStorage
+  const saved = JSON.parse(localStorage.getItem('kdCompare') || '{}');
+  if (saved.icloud) document.getElementById('icloudUrl').value = saved.icloud;
+  if (saved.vercel) document.getElementById('vercelUrl').value = saved.vercel;
+
+  function startComparison() {
+    const icloud = document.getElementById('icloudUrl').value.trim();
+    const vercel = document.getElementById('vercelUrl').value.trim();
+    if (!icloud || !vercel) return;
+
+    localStorage.setItem('kdCompare', JSON.stringify({ icloud, vercel }));
+
+    document.getElementById('setup').style.display = 'none';
+    document.getElementById('comparison').classList.add('active');
+    document.getElementById('controls').classList.add('active');
+    document.getElementById('backBtn').classList.add('active');
+
+    document.getElementById('icloudDisplay').textContent = icloud;
+    document.getElementById('vercelDisplay').textContent = vercel;
+
+    // iCloud blocks iframes, so show a link instead
+    document.getElementById('icloudPane').innerHTML = `
+      <div class="blocked-notice">
+        <div class="icon">🔒</div>
+        <p>iCloud Keynote blocks iframe embedding. Click below to open it in a new tab,
+           then compare side by side with the Vercel pane.</p>
+        <a href="${icloud}" target="_blank" rel="noopener">Open in iCloud Keynote ↗</a>
+      </div>`;
+
+    // Vercel should embed fine
+    document.getElementById('vercelPane').innerHTML =
+      `<iframe src="${vercel}" allow="fullscreen"></iframe>`;
+  }
+
+  function showSetup() {
+    document.getElementById('setup').style.display = 'block';
+    document.getElementById('comparison').classList.remove('active');
+    document.getElementById('controls').classList.remove('active');
+    document.getElementById('backBtn').classList.remove('active');
+  }
+
+  function setMode(mode) {
+    const comp = document.getElementById('comparison');
+    const btns = document.querySelectorAll('.controls button');
+    btns.forEach(b => b.classList.remove('active'));
+    if (mode === 'overlay') {
+      comp.classList.add('overlay');
+      btns[1].classList.add('active');
+    } else {
+      comp.classList.remove('overlay');
+      btns[0].classList.add('active');
+    }
+  }
+</script>
+
+</body>
+</html>
