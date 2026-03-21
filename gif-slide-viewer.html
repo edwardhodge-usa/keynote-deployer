@@ -522,11 +522,108 @@
       return { frames, slides, width: gifWidth, height: gifHeight, frameDelay };
     }
 
-    // ── Viewer (stub for Task 3) ──
+    // ── Viewer ──
     function initViewer() {
-      console.log('initViewer called — slides:', slideMap.length);
-      // Will be implemented in Task 3
+      // Hide loading, show viewer
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('viewer').style.display = 'flex';
+      document.getElementById('canvasContainer').style.display = 'block';
+
+      // Set canvas dimensions
+      const canvas = document.getElementById('slideCanvas');
+      canvas.width = parsedData.width;
+      canvas.height = parsedData.height;
+
+      // Build dot strip
+      const dotStrip = document.getElementById('dotStrip');
+      dotStrip.innerHTML = '';
+      slideMap.forEach((slide, i) => {
+        const dot = document.createElement('button');
+        dot.className = 'dot';
+        dot.title = `Slide ${i + 1}`;
+        dot.onclick = () => jumpToSlide(i);
+        dotStrip.appendChild(dot);
+      });
+
+      // Show first slide
+      currentSlideIndex = 0;
+      renderSlide(0);
+      updateControls();
     }
+
+    function renderSlide(index) {
+      const canvas = document.getElementById('slideCanvas');
+      const ctx = canvas.getContext('2d');
+      const slide = slideMap[index];
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(parsedData.frames[slide.restFrame], 0, 0);
+      currentSlideIndex = index;
+      updateControls();
+    }
+
+    function updateControls() {
+      document.getElementById('prevBtn').disabled = currentSlideIndex <= 0 || isPlaying;
+      document.getElementById('nextBtn').disabled = currentSlideIndex >= slideMap.length - 1 || isPlaying;
+      document.getElementById('slideCounter').textContent = `${currentSlideIndex + 1} of ${slideMap.length}`;
+
+      // Update dots
+      document.querySelectorAll('.dot').forEach((dot, i) => {
+        dot.classList.toggle('active', i === currentSlideIndex);
+      });
+    }
+
+    // ── Playback ──
+    function playNext() {
+      if (isPlaying || currentSlideIndex >= slideMap.length - 1) return;
+
+      const nextSlide = slideMap[currentSlideIndex + 1];
+      if (!nextSlide.transitionFrames) {
+        renderSlide(currentSlideIndex + 1);
+        return;
+      }
+
+      isPlaying = true;
+      updateControls();
+
+      const { start, end } = nextSlide.transitionFrames;
+      const canvas = document.getElementById('slideCanvas');
+      const ctx = canvas.getContext('2d');
+      let frameIdx = start;
+
+      function playFrame() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(parsedData.frames[frameIdx], 0, 0);
+        frameIdx++;
+
+        if (frameIdx <= end) {
+          setTimeout(() => requestAnimationFrame(playFrame), parsedData.frameDelay);
+        } else {
+          isPlaying = false;
+          renderSlide(currentSlideIndex + 1);
+        }
+      }
+
+      requestAnimationFrame(playFrame);
+    }
+
+    function playPrev() {
+      if (isPlaying || currentSlideIndex <= 0) return;
+      renderSlide(currentSlideIndex - 1);
+    }
+
+    function jumpToSlide(index) {
+      if (isPlaying) return;
+      renderSlide(index);
+    }
+
+    // ── Wire buttons and keyboard ──
+    document.getElementById('nextBtn').onclick = playNext;
+    document.getElementById('prevBtn').onclick = playPrev;
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') playNext();
+      if (e.key === 'ArrowLeft') playPrev();
+    });
   </script>
 
 </body>
