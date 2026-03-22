@@ -14,9 +14,8 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "6.2"
-    CODE_SIGN_IDENTITY: "-"
-    CODE_SIGNING_REQUIRED: "NO"
     MACOSX_DEPLOYMENT_TARGET: "15.0"
+    DEVELOPMENT_TEAM: "8RHA62T6FQ"
 
 targets:
   KeynoteDeployer:
@@ -45,3 +44,17 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.imaginelabstudios.keynote-deployer
         MARKETING_VERSION: "1.0.1"
         CURRENT_PROJECT_VERSION: "1.0.1"
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+      configs:
+        Debug:
+          CODE_SIGN_IDENTITY: "Apple Development"
+          CODE_SIGN_STYLE: Automatic
+          CODE_SIGNING_REQUIRED: "YES"
+          CODE_SIGNING_ALLOWED: "YES"
+        Release:
+          CODE_SIGN_IDENTITY: "Developer ID Application: Imaginelab Studios (8RHA62T6FQ)"
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGNING_REQUIRED: "YES"
+          CODE_SIGNING_ALLOWED: "YES"
+          ENABLE_HARDENED_RUNTIME: "YES"
+          CODE_SIGN_ENTITLEMENTS: "Sources/KeynoteDeployer.entitlements"
