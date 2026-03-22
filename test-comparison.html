@@ -129,6 +129,11 @@
     white-space: nowrap;
   }
 
+  .pane > div {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
   .pane iframe {
     flex: 1;
     width: 100%;
@@ -174,28 +179,7 @@
   .back-btn.active { display: block; }
   .back-btn:hover { background: #333; }
 
-  /* Blocked iframe notice */
-  .blocked-notice {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    padding: 32px;
-    text-align: center;
-  }
-  .blocked-notice .icon { font-size: 32px; opacity: 0.5; }
-  .blocked-notice p { font-size: 13px; color: #888; max-width: 360px; line-height: 1.5; }
-  .blocked-notice a {
-    color: #3b82f6;
-    text-decoration: none;
-    font-size: 13px;
-    padding: 8px 16px;
-    border: 1px solid #3b82f6;
-    border-radius: 6px;
-  }
-  .blocked-notice a:hover { background: rgba(59,130,246,0.1); }
+  .pane iframe + .pane iframe { border-left: 1px solid #222; }
 </style>
 </head>
 <body>
@@ -224,7 +208,7 @@
 
   <label for="icloudUrl">iCloud Keynote Share URL</label>
   <input type="url" id="icloudUrl" placeholder="https://www.icloud.com/keynote/...">
-  <div class="hint">Keynote → Share → Collaborate → Anyone with link → View only</div>
+  <div class="hint">Keynote → Share → Collaborate → Anyone with link → View only (auto-converted to embed format)</div>
 
   <label for="vercelUrl">Vercel Deployment URL</label>
   <input type="url" id="vercelUrl" placeholder="https://your-project.vercel.app">
@@ -272,14 +256,11 @@
     document.getElementById('icloudDisplay').textContent = icloud;
     document.getElementById('vercelDisplay').textContent = vercel;
 
-    // iCloud blocks iframes, so show a link instead
-    document.getElementById('icloudPane').innerHTML = `
-      <div class="blocked-notice">
-        <div class="icon">🔒</div>
-        <p>iCloud Keynote blocks iframe embedding. Click below to open it in a new tab,
-           then compare side by side with the Vercel pane.</p>
-        <a href="${icloud}" target="_blank" rel="noopener">Open in iCloud Keynote ↗</a>
-      </div>`;
+    // Convert iCloud share link to embed format
+    // Strip #fragment, add ?embed=true — Apple returns frame-ancestors * for embed URLs
+    const embedUrl = icloud.split('#')[0] + '?embed=true';
+    document.getElementById('icloudPane').innerHTML =
+      `<iframe src="${embedUrl}" allow="fullscreen" referrerpolicy="no-referrer"></iframe>`;
 
     // Vercel should embed fine
     document.getElementById('vercelPane').innerHTML =
