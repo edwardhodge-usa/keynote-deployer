@@ -3,9 +3,12 @@ import SwiftData
 
 @main
 struct KeynoteDeployerApp: App {
+    @StateObject private var updater = UpdaterService()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(updater)
         }
         .modelContainer(for: [HistoryEntry.self])
         .windowStyle(.hiddenTitleBar)
@@ -29,6 +32,12 @@ struct KeynoteDeployerApp: App {
                     )
                 }
                 .keyboardShortcut(",", modifiers: .command)
+            }
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates\u{2026}") {
+                    updater.checkForUpdates()
+                }
+                .disabled(!updater.canCheckForUpdates)
             }
         }
     }

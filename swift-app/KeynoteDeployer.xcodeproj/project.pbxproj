@@ -16,10 +16,12 @@
 		483D3CC267D95282088F9309 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28C5E49D1314790083692357 /* AppSettings.swift */; };
 		492021F2C6BA53DA82ADF360 /* VercelDeployer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 282B4D114C60E28D56418FAE /* VercelDeployer.swift */; };
 		4B8F2669D064C5BD83CA4387 /* PipelineResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17821C750B379235D1F37C5E /* PipelineResult.swift */; };
+		4C00428279F6EAE4F1216066 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = DF36B5B1F47AEAEE2E972A00 /* Sparkle */; };
 		53C52E6F5AC05C366512AD08 /* NavigationTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B38AC4D9349306424DE153 /* NavigationTab.swift */; };
 		54EA0EA3D9BD76F228023924 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3AD033AAD0411C7CA1B6CD /* SettingsView.swift */; };
 		68FCF5155F11F63CBB34761F /* DeploymentVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25181D8CAB9909769D352295 /* DeploymentVerifier.swift */; };
 		70CBE64B6030B4BAC00B9F32 /* FileOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082147F09FC716A0BEAD8B15 /* FileOperations.swift */; };
+		7DAEEC6461E2EA43B6189CBE /* UpdaterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1AE82499CE26C6968F8AA7 /* UpdaterService.swift */; };
 		7EE6E590CE33B1217355E8BE /* ProcessingStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E9CE1B85FB4D719BE7B0EC8 /* ProcessingStep.swift */; };
 		84AF2E114BF9B992367626D4 /* DeployView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23DFAEC2277359D2ECF9D69 /* DeployView.swift */; };
 		84C92D6C1E3FBCD22171220F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 748C27488D67FC5F775B7ABB /* ContentView.swift */; };
@@ -35,6 +37,7 @@
 		082147F09FC716A0BEAD8B15 /* FileOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileOperations.swift; sourceTree = "<group>"; };
 		17821C750B379235D1F37C5E /* PipelineResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineResult.swift; sourceTree = "<group>"; };
 		17A85902F080898C86352154 /* VercelAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VercelAPI.swift; sourceTree = "<group>"; };
+		1C1AE82499CE26C6968F8AA7 /* UpdaterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterService.swift; sourceTree = "<group>"; };
 		23F61A6BE61C1CDC6237ADF6 /* VercelProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VercelProject.swift; sourceTree = "<group>"; };
 		25181D8CAB9909769D352295 /* DeploymentVerifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentVerifier.swift; sourceTree = "<group>"; };
 		252E013E7FB809AC24354D6C /* DeployProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeployProgressView.swift; sourceTree = "<group>"; };
@@ -57,6 +60,17 @@
 		F4F9F98F1120CAF61D82D80B /* KeynoteDeployerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeynoteDeployerApp.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFrameworksBuildPhase section */
+		711AF864EE7C11D78482A579 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4C00428279F6EAE4F1216066 /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
 /* Begin PBXGroup section */
 		01C679620FE08A5704268729 /* Services */ = {
 			isa = PBXGroup;
@@ -65,6 +79,7 @@
 				082147F09FC716A0BEAD8B15 /* FileOperations.swift */,
 				A80FCBDC9C1ECDDA55886B5A /* IndexHtmlGenerator.swift */,
 				987B91A81602E8E224604358 /* KeynoteProcessor.swift */,
+				1C1AE82499CE26C6968F8AA7 /* UpdaterService.swift */,
 				17A85902F080898C86352154 /* VercelAPI.swift */,
 				282B4D114C60E28D56418FAE /* VercelDeployer.swift */,
 			);
@@ -151,6 +166,7 @@
 			buildConfigurationList = 2FAD024BC12DC30440F1747A /* Build configuration list for PBXNativeTarget "KeynoteDeployer" */;
 			buildPhases = (
 				A235079C29649013D0782B86 /* Sources */,
+				711AF864EE7C11D78482A579 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -158,6 +174,7 @@
 			);
 			name = KeynoteDeployer;
 			packageProductDependencies = (
+				DF36B5B1F47AEAEE2E972A00 /* Sparkle */,
 			);
 			productName = KeynoteDeployer;
 			productReference = 643B10849DA333A7037B54A5 /* KeynoteDeployer.app */;
@@ -183,6 +200,9 @@
 			);
 			mainGroup = EA6B479AEF3F76F8ADAFE87C;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				21441DC6C726A6991BD32CFB /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 043224CFEB6D8A5788700196 /* Products */;
 			projectDirPath = "";
@@ -217,6 +237,7 @@
 				15125B060EAC0C268F273761 /* ProjectsView.swift in Sources */,
 				54EA0EA3D9BD76F228023924 /* SettingsView.swift in Sources */,
 				13F48A1926D584294516EEE0 /* SidebarView.swift in Sources */,
+				7DAEEC6461E2EA43B6189CBE /* UpdaterService.swift in Sources */,
 				A230A93A825F8EF3B09C1AE8 /* VercelAPI.swift in Sources */,
 				492021F2C6BA53DA82ADF360 /* VercelDeployer.swift in Sources */,
 				46171C654C9CF229C03D7615 /* VercelProject.swift in Sources */,
@@ -237,6 +258,8 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Keynote Deployer";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright 2026 ImagineLab Studios";
+				INFOPLIST_KEY_SUFeedURL = "https://github.com/edwardhodge-usa/keynote-deployer/releases/latest/download/appcast.xml";
+				INFOPLIST_KEY_SUPublicEDKey = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -316,6 +339,8 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Keynote Deployer";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright 2026 ImagineLab Studios";
+				INFOPLIST_KEY_SUFeedURL = "https://github.com/edwardhodge-usa/keynote-deployer/releases/latest/download/appcast.xml";
+				INFOPLIST_KEY_SUPublicEDKey = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -413,6 +438,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		21441DC6C726A6991BD32CFB /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.7.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		DF36B5B1F47AEAEE2E972A00 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 21441DC6C726A6991BD32CFB /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A3297633A2712EDC20C0EB84 /* Project object */;
 }

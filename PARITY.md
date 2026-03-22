@@ -92,11 +92,11 @@ Swift: SwiftUI + SwiftData (macOS 15+, Swift 6.2)
 | Hidden inset title bar + traffic lights | Done | Done | .windowStyle(.hiddenTitleBar) + .windowToolbarStyle(.unified) |
 | Vibrancy sidebar | Done | Done | .background(.ultraThinMaterial) on NavigationSplitView |
 | Version display in sidebar | Done | Done | CFBundleShortVersionString in safeAreaInset footer |
-| Auto-updater | Done | TODO | Sparkle integration future |
+| Auto-updater | Done | Done | Sparkle 2.7 via SPM, UpdaterService, "Check for Updates" menu item |
 
 ## Summary
 
 - **Total features:** 47 (2 marked N/A = 45 applicable)
-- **Done:** 44
-- **TODO:** 1 (auto-updater via Sparkle — future)
-- **Parity:** 98% done (44/45 applicable features)
+- **Done:** 45
+- **TODO:** 0
+- **Parity:** 100% (45/45 applicable features)
