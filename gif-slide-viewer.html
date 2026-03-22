@@ -511,38 +511,48 @@
         }
       }
 
-      // Classify frames: diff > 5 = transition, <= 5 = hold
-      const THRESHOLD = 5;
-      const segments = [];
-      let currentType = 'hold'; // First frame is always hold
-      let segStart = 0;
+      // Slide detection: find "quiet runs" — sequences of consecutive frames
+      // where diff is near zero. These are the actual slide holds.
+      // Everything between quiet runs is a transition.
+      // This handles both gradual dissolves and hard cuts correctly.
+      const QUIET_THRESHOLD = 0.3; // max diff to count as "quiet" (no change)
+      const MIN_QUIET_RUN = 8;     // minimum frames for a valid slide hold (~0.3 sec)
 
-      for (let i = 1; i < diffs.length; i++) {
-        const type = diffs[i] > THRESHOLD ? 'transition' : 'hold';
-        if (type !== currentType) {
-          segments.push({ type: currentType, start: segStart, end: i - 1 });
-          currentType = type;
-          segStart = i;
+      // Find all quiet runs
+      const quietRuns = [];
+      let runStart = null;
+      for (let i = 0; i < diffs.length; i++) {
+        if (diffs[i] <= QUIET_THRESHOLD) {
+          if (runStart === null) runStart = i;
+        } else {
+          if (runStart !== null && (i - runStart) >= MIN_QUIET_RUN) {
+            quietRuns.push({ start: runStart, end: i - 1 });
+          }
+          runStart = null;
         }
       }
-      segments.push({ type: currentType, start: segStart, end: diffs.length - 1 });
+      // Close final run
+      if (runStart !== null && (diffs.length - runStart) >= MIN_QUIET_RUN) {
+        quietRuns.push({ start: runStart, end: diffs.length - 1 });
+      }
 
-      // Build slide map
+      // Build slide map from quiet runs
+      // Each quiet run is a slide. The gap between consecutive quiet runs is a transition.
       const slides = [];
-      for (let i = 0; i < segments.length; i++) {
-        if (segments[i].type === 'hold') {
-          slides.push({
-            restFrame: segments[i].start,
-            holdStart: segments[i].start,
-            holdEnd: segments[i].end,
-            transitionFrames: i > 0 && segments[i - 1].type === 'transition'
-              ? { start: segments[i - 1].start, end: segments[i - 1].end }
-              : null
-          });
-        }
+      for (let i = 0; i < quietRuns.length; i++) {
+        const run = quietRuns[i];
+        const prevRun = i > 0 ? quietRuns[i - 1] : null;
+        slides.push({
+          restFrame: run.start,
+          holdStart: run.start,
+          holdEnd: run.end,
+          transitionFrames: prevRun
+            ? { start: prevRun.end + 1, end: run.start - 1 }
+            : null
+        });
       }
 
-      // Fallback: if no hold segments found, treat every frame as a single slide
+      // Fallback: if no slides found, treat entire GIF as one slide
       if (slides.length === 0) {
         slides.push({
           restFrame: 0,
@@ -557,7 +567,7 @@
       }
 
       console.log(`Detected ${slides.length} slides from ${frames.length} frames`);
-      console.log('Segments:', segments);
+      console.log('Quiet runs:', quietRuns);
       console.log('Frame delay:', frameDelay);
 
       return { frames, slides, width: gifWidth, height: gifHeight, frameDelay };
