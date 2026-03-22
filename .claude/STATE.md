@@ -1,28 +1,28 @@
 # Session State
 
-**Last updated:** 2026-03-21 17:30
-**Goal:** Add GIF slide viewer, iCloud embed support, and Secure Embed mode
-**Plan:** docs/superpowers/plans/2026-03-21-gif-slide-viewer.md + 2026-03-21-secure-embed.md
+**Last updated:** 2026-03-21 19:00
+**Goal:** Swift parallel build — scaffold → 100% parity → release → notarize skill
+**Plan:** None
 
 ## Current Task
-**What:** Both features complete, released as v1.0.2
-**Status:** Completed — all code shipped, built, and published to GitHub Releases
+**What:** Full Swift build of Keynote Deployer + distribution pipeline
+**Status:** Completed — 100% parity, v1.0.1-swift released to GitHub
 
 ## Context (for next session)
-- GIF slide viewer uses "quiet runs" algorithm (8+ frames with diff < 0.3) — much better than simple threshold
-- iCloud embed works via `?embed=true` parameter — strips transitions/builds but shows static slides
-- Secure Embed mode injects right-click/drag/save prevention + writes vercel.json with CSP frame-ancestors
-- Default allowed domains: `*.imaginelabstudios.com *.framer.app` (configurable in settings)
-- Bumper lanes flagged changes — deferred structured review to next session
+- Swift app at 45/45 applicable features (100% parity with Electron)
+- v1.0.1-swift published: universal binary, Developer ID signed, Sparkle EdDSA signed
+- Notarization NOT yet done — Edward needs to run `xcrun notarytool store-credentials "notarytool"` interactively (HTML checklist at /tmp/keynote-deployer-build/notarization-setup.html)
+- `/notarize` skill created for future releases
+- `ils-scope-budget` project initialized (separate repo, stack-agnostic)
+- AI Assistant (imaginelab-ai-assistant) is the master orchestrator connecting all projects
 
 ## Next Step
-Test Secure Embed end-to-end: deploy a presentation with Secure Embed enabled, embed in Framer, verify CSP headers block embedding from unauthorized domains and right-click is disabled.
+Run notarytool store-credentials interactively, then re-notarize the v1.0.1-swift release. After that, the app is fully distribution-ready.
 
 ## Verification Goals
-- [x] GIF slide viewer correctly detects all 20 slides from test GIF
-- [x] Forward button plays transitions at native speed
-- [x] iCloud embed works via ?embed=true in side-by-side comparison
-- [x] Secure Embed toggle appears in deploy confirm phase
-- [x] App builds clean (Vite + electron-builder)
-- [x] v1.0.2 released to GitHub
-- [ ] Secure Embed tested end-to-end with real Vercel deployment + Framer embed
+- [x] Swift build compiles clean (Debug + Release)
+- [x] All 45 applicable features implemented (PARITY.md)
+- [x] Developer ID signed with hardened runtime
+- [x] Sparkle integrated with EdDSA key
+- [x] GitHub Release published with DMG + appcast.xml
+- [ ] Notarization accepted by Apple (pending credentials setup)

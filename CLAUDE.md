@@ -21,6 +21,8 @@ Update this file after every correction.
 **2026-03-21** - iCloud Keynote embeds: strip `#fragment` from share URL, add `?embed=true` → Apple returns `frame-ancestors *` and loads lightweight embed viewer. Without `?embed=true`, `frame-ancestors *.icloud.com:443` blocks all embedding
 **2026-03-21** - GIF slide detection: simple per-frame diff threshold fails (misses dissolves, creates false 1-frame "transitions") → Use "quiet runs" algorithm: find 8+ consecutive frames with diff < 0.3, those are the slides. Everything between is transition
 **2026-03-21** - `npx electron-builder` without `npx vite build` first → "dist-electron/main.js does not exist". Must run Vite build before electron-builder since `rm -rf dist dist-electron` cleans both
+**2026-03-21** - FileManager.copyItem throws if destination exists → removeItem before copyItem when restoring from backup
+**2026-03-21** - Process pipe deadlock: waitUntilExit before readDataToEndOfFile hangs if pipe buffer fills → drain pipes on background threads first, then waitUntilExit
 
 ## Key Commands
 ```bash
