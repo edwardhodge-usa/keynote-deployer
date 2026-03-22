@@ -11,6 +11,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   enableRuntimeVerification: false,
   projectNamePrefix: '',
   lastFolderPath: '',
+  secureEmbed: true,
+  embedAllowedDomains: '*.imaginelabstudios.com *.framer.app',
 }
 
 function getDataDir(): string {

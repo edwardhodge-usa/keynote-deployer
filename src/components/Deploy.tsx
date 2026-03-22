@@ -52,6 +52,7 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
   const [error, setError] = useState('')
   const [validating, setValidating] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
+  const [secureEmbed, setSecureEmbed] = useState(true)
 
   // Listen for processing progress
   useEffect(() => {
@@ -128,6 +129,7 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
       folderPath,
       projectName,
       metadata,
+      secureEmbed,
     })
 
     if (res.success && res.data?.success) {
@@ -258,6 +260,16 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
                 }
               </p>
             </div>
+
+            <label className="flex items-center gap-2 mb-4 text-[13px] text-gray-500 dark:text-gray-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={secureEmbed}
+                onChange={(e) => setSecureEmbed(e.target.checked)}
+                className="rounded"
+              />
+              Secure Embed — disable downloads, restrict embedding to portal
+            </label>
 
             <div className="flex gap-3">
               <button onClick={reset} className="btn btn-secondary">

@@ -196,7 +196,8 @@ ipcMain.handle('process-and-deploy', async (event, request: ProcessRequest) => {
     const processResult = await processKeynoteFolder(
       request.folderPath,
       request.metadata,
-      sendProgress
+      sendProgress,
+      request.secureEmbed ?? false
     )
 
     // Steps 12-13: Deploy to Vercel
@@ -205,7 +206,9 @@ ipcMain.handle('process-and-deploy', async (event, request: ProcessRequest) => {
       request.projectName,
       settings.vercelToken,
       settings.vercelTeamId,
-      sendProgress
+      sendProgress,
+      request.secureEmbed ?? false,
+      settings.embedAllowedDomains ?? ''
     )
 
     if (!deployResult.success) {

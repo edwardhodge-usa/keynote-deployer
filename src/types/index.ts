@@ -46,6 +46,7 @@ export interface ProcessRequest {
   folderPath: string
   projectName: string
   metadata: KeynoteMetadata
+  secureEmbed?: boolean
 }
 
 // Full pipeline result
@@ -82,6 +83,8 @@ export interface AppSettings {
   enableRuntimeVerification: boolean
   projectNamePrefix: string
   lastFolderPath: string
+  secureEmbed: boolean
+  embedAllowedDomains: string
 }
 
 // Navigation tabs

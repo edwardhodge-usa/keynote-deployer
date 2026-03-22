@@ -1,5 +1,6 @@
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import path from 'path'
 import type { VercelProject, ProcessingStep } from '../src/types/index'
 
 const execFileAsync = promisify(execFile)
@@ -94,7 +95,9 @@ export async function deployToVercel(
   projectName: string,
   token: string,
   teamId: string,
-  onProgress: ProgressCallback
+  onProgress: ProgressCallback,
+  secureEmbed: boolean = false,
+  embedAllowedDomains: string = ''
 ): Promise<DeployResult> {
   // Step 12: Ensure Vercel project exists
   onProgress({ id: 12, label: 'Vercel project', detail: 'Creating or finding project...', status: 'active' })
@@ -106,6 +109,40 @@ export async function deployToVercel(
   } catch (error) {
     onProgress({ id: 12, label: 'Vercel project', detail: String(error), status: 'error' })
     return { success: false, url: '', projectId: '', error: String(error) }
+  }
+
+  // Write vercel.json with CSP headers if secure embed enabled
+  if (secureEmbed && embedAllowedDomains) {
+    const fs = await import('fs/promises')
+    const domains = embedAllowedDomains
+      .split(/[\s,]+/)
+      .filter(Boolean)
+      .map(d => d.startsWith('https://') ? d : `https://${d}`)
+      .join(' ')
+
+    const vercelConfig = {
+      headers: [
+        {
+          source: '/(.*)',
+          headers: [
+            {
+              key: 'Content-Security-Policy',
+              value: `frame-ancestors 'self' ${domains}`
+            },
+            {
+              key: 'X-Content-Type-Options',
+              value: 'nosniff'
+            }
+          ]
+        }
+      ]
+    }
+
+    await fs.writeFile(
+      path.join(folderPath, 'vercel.json'),
+      JSON.stringify(vercelConfig, null, 2),
+      'utf-8'
+    )
   }
 
   // Step 13: Deploy via CLI

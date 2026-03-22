@@ -88,7 +88,8 @@ function reportProgress(
 export async function processKeynoteFolder(
   folderPath: string,
   metadata: KeynoteMetadata,
-  onProgress: ProgressCallback
+  onProgress: ProgressCallback,
+  secureEmbed: boolean = false
 ): Promise<ProcessResult> {
   const mainJsPath = path.join(folderPath, 'assets', 'player', 'main.js')
   const backupPath = path.join(folderPath, 'assets', 'player', 'main.js.backup')
@@ -150,7 +151,7 @@ export async function processKeynoteFolder(
 
   // Step 11: Generate index.html wrapper
   reportProgress(onProgress, 11, 'Generate index.html', 'Creating wrapper...', 'active')
-  const indexHtml = generateIndexHtml(metadata.slideCount)
+  const indexHtml = generateIndexHtml(metadata.slideCount, secureEmbed)
   await fs.writeFile(path.join(folderPath, 'index.html'), indexHtml, 'utf-8')
   reportProgress(onProgress, 11, 'Generate index.html', 'index.html created', 'completed')
 
@@ -323,7 +324,23 @@ function buildScript(slideCount: number): string {
 `.trim()
 }
 
-function generateIndexHtml(slideCount: number): string {
+function buildSecureEmbedScript(): string {
+  return `
+(function(){
+  document.addEventListener('contextmenu',function(e){e.preventDefault()});
+  document.addEventListener('dragstart',function(e){e.preventDefault()});
+  document.body.style.userSelect='none';
+  document.body.style.webkitUserSelect='none';
+  document.addEventListener('keydown',function(e){
+    if((e.ctrlKey||e.metaKey)&&['s','p','u'].indexOf(e.key.toLowerCase())!==-1){
+      e.preventDefault();
+    }
+  });
+})();
+`.trim()
+}
+
+function generateIndexHtml(slideCount: number, secureEmbed: boolean = false): string {
   return [
     '<!doctype html>',
     '<html xmlns="http://www.w3.org/1999/xhtml">',
@@ -337,6 +354,7 @@ function generateIndexHtml(slideCount: number): string {
     buildBodyHtml(),
     '<script src="assets/player/main.js"></script>',
     `<script>${buildScript(slideCount)}</script>`,
+    ...(secureEmbed ? [`<script>${buildSecureEmbedScript()}</script>`] : []),
     '</body>',
     '</html>',
   ].join('\n')
