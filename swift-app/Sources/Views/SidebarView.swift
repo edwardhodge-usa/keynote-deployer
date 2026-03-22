@@ -10,5 +10,23 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .navigationTitle("Keynote Deployer")
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            versionFooter
+        }
+    }
+
+    private var versionFooter: some View {
+        HStack {
+            Text("v\(appVersion)")
+                .font(.caption2)
+                .foregroundStyle(.quaternary)
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+    }
+
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
     }
 }

@@ -8,7 +8,8 @@ struct KeynoteDeployerApp: App {
             ContentView()
         }
         .modelContainer(for: [HistoryEntry.self])
-        .windowStyle(.titleBar)
+        .windowStyle(.hiddenTitleBar)
+        .windowToolbarStyle(.unified)
         .defaultSize(width: 1100, height: 1000)
         .commands {
             CommandGroup(replacing: .newItem) {

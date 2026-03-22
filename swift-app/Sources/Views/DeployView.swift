@@ -371,10 +371,19 @@ struct DeployView: View {
                 let prodUrl = (try? await api.resolveProductionUrl(projectId: project.id))
                     ?? "https://\(projectName).vercel.app"
 
-                // Steps 14-15: Verification (skip for now)
+                // Step 14: Verify deployment (static file check)
+                let verification = await DeploymentVerifier.verify(
+                    deployUrl: prodUrl,
+                    onProgress: { step in
+                        Task { @MainActor in
+                            updateStep(step)
+                        }
+                    }
+                )
+
+                // Step 15: Runtime verification (skipped — no Puppeteer equivalent)
                 await MainActor.run {
-                    updateStep(ProcessingStep(id: 14, label: "Verify deployment", detail: "Skipped", status: .skipped))
-                    updateStep(ProcessingStep(id: 15, label: "Runtime verification", detail: "Skipped", status: .skipped))
+                    updateStep(ProcessingStep(id: 15, label: "Runtime verification", detail: "Skipped (native app)", status: .skipped))
                     updateStep(ProcessingStep(id: 16, label: "Complete", detail: prodUrl, status: .completed))
                 }
 
@@ -405,7 +414,7 @@ struct DeployView: View {
                         url: prodUrl,
                         fixesApplied: processResult.fixesApplied,
                         fixesSkipped: processResult.fixesSkipped,
-                        verification: nil,
+                        verification: verification,
                         error: nil
                     )
                     phase = .complete

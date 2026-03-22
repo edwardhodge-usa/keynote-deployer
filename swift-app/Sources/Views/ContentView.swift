@@ -25,6 +25,7 @@ struct ContentView: View {
                 SettingsView()
             }
         }
+        .background(.ultraThinMaterial)
         .onReceive(NotificationCenter.default.publisher(for: .navigateToTab)) { notification in
             if let tab = notification.object as? NavigationTab {
                 selectedTab = tab

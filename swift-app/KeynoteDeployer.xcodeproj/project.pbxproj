@@ -18,6 +18,7 @@
 		4B8F2669D064C5BD83CA4387 /* PipelineResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17821C750B379235D1F37C5E /* PipelineResult.swift */; };
 		53C52E6F5AC05C366512AD08 /* NavigationTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B38AC4D9349306424DE153 /* NavigationTab.swift */; };
 		54EA0EA3D9BD76F228023924 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3AD033AAD0411C7CA1B6CD /* SettingsView.swift */; };
+		68FCF5155F11F63CBB34761F /* DeploymentVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25181D8CAB9909769D352295 /* DeploymentVerifier.swift */; };
 		70CBE64B6030B4BAC00B9F32 /* FileOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082147F09FC716A0BEAD8B15 /* FileOperations.swift */; };
 		7EE6E590CE33B1217355E8BE /* ProcessingStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E9CE1B85FB4D719BE7B0EC8 /* ProcessingStep.swift */; };
 		84AF2E114BF9B992367626D4 /* DeployView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23DFAEC2277359D2ECF9D69 /* DeployView.swift */; };
@@ -35,6 +36,7 @@
 		17821C750B379235D1F37C5E /* PipelineResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineResult.swift; sourceTree = "<group>"; };
 		17A85902F080898C86352154 /* VercelAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VercelAPI.swift; sourceTree = "<group>"; };
 		23F61A6BE61C1CDC6237ADF6 /* VercelProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VercelProject.swift; sourceTree = "<group>"; };
+		25181D8CAB9909769D352295 /* DeploymentVerifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentVerifier.swift; sourceTree = "<group>"; };
 		252E013E7FB809AC24354D6C /* DeployProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeployProgressView.swift; sourceTree = "<group>"; };
 		282B4D114C60E28D56418FAE /* VercelDeployer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VercelDeployer.swift; sourceTree = "<group>"; };
 		28C5E49D1314790083692357 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
@@ -59,6 +61,7 @@
 		01C679620FE08A5704268729 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				25181D8CAB9909769D352295 /* DeploymentVerifier.swift */,
 				082147F09FC716A0BEAD8B15 /* FileOperations.swift */,
 				A80FCBDC9C1ECDDA55886B5A /* IndexHtmlGenerator.swift */,
 				987B91A81602E8E224604358 /* KeynoteProcessor.swift */,
@@ -200,6 +203,7 @@
 				84C92D6C1E3FBCD22171220F /* ContentView.swift in Sources */,
 				9467E10D5FA4765BE26819DF /* DeployProgressView.swift in Sources */,
 				84AF2E114BF9B992367626D4 /* DeployView.swift in Sources */,
+				68FCF5155F11F63CBB34761F /* DeploymentVerifier.swift in Sources */,
 				70CBE64B6030B4BAC00B9F32 /* FileOperations.swift in Sources */,
 				32E92AFC106BE6E110B3B5BA /* HistoryEntry.swift in Sources */,
 				C4E54C86FF711C684113EACE /* HistoryView.swift in Sources */,

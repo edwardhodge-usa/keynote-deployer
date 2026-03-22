@@ -30,8 +30,8 @@ Swift: SwiftUI + SwiftData (macOS 15+, Swift 6.2)
 | Vercel project creation/lookup (REST API) | Done | Done | VercelAPI.ensureProject |
 | Vercel CLI deployment (shell out) | Done | Done | VercelDeployer.deploy |
 | Production URL resolution (handles truncation) | Done | Done | VercelAPI.resolveProductionUrl |
-| Deployment verification (static file check) | Done | TODO | verifier.ts not yet ported |
-| Runtime verification (Puppeteer) | Done | TODO | runtimeVerifier.ts — may skip for Swift |
+| Deployment verification (static file check) | Done | Done | DeploymentVerifier — fetches main.js + index.html, checks all 7 fix patterns |
+| Runtime verification (Puppeteer) | Done | N/A | No Puppeteer equivalent on native — browser automation not needed |
 
 ## Deploy View
 
@@ -89,15 +89,14 @@ Swift: SwiftUI + SwiftData (macOS 15+, Swift 6.2)
 | Sidebar navigation (4 tabs) | Done | Done | NavigationSplitView + List |
 | Menu bar (Cmd+, Settings, Cmd+N Deploy) | Done | Done | .commands modifier |
 | Dark mode (system theme) | Done | Done | Native SwiftUI |
-| Hidden inset title bar + traffic lights | Done | TODO | Need .windowStyle config |
-| Vibrancy sidebar | Done | TODO | Need Material/vibrancy |
-| Version display in sidebar | Done | TODO | |
+| Hidden inset title bar + traffic lights | Done | Done | .windowStyle(.hiddenTitleBar) + .windowToolbarStyle(.unified) |
+| Vibrancy sidebar | Done | Done | .background(.ultraThinMaterial) on NavigationSplitView |
+| Version display in sidebar | Done | Done | CFBundleShortVersionString in safeAreaInset footer |
 | Auto-updater | Done | TODO | Sparkle integration future |
 
 ## Summary
 
-- **Total features:** 47 (1 marked N/A = 46 applicable)
+- **Total features:** 47 (2 marked N/A = 45 applicable)
 - **Done:** 44
-- **TODO:** 2 (deployment verification, runtime verification)
-- **App Chrome TODO:** 4 (title bar, vibrancy, version, auto-updater)
-- **Parity:** 96% done (44/46 applicable features)
+- **TODO:** 1 (auto-updater via Sparkle — future)
+- **Parity:** 98% done (44/45 applicable features)
