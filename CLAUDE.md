@@ -55,5 +55,71 @@ npm run electron:build   # Build for production
 - macOS native feel: hidden inset title bar, SF Pro fonts, dark mode
 - Generated index.html includes loading overlay, nav controls, slide counter
 
+## Parallel Build Architecture
+
+### Dual-Track Strategy
+| Primary (Electron) | Swift Equivalent |
+|---|---|
+| React component (`.tsx`) | SwiftUI View (`.swift`) |
+| IPC handler (`ipcMain.handle`) | Service method (async func) |
+| `fs.readFile` / `fs.writeFile` | `FileManager` / `String(contentsOfFile:)` |
+| Vercel CLI (`execFile`) | `Process()` shell-out |
+| Vercel REST API (`fetch`) | `URLSession.shared.data(for:)` |
+| `~/Library/Application Support/keynote-deployer/` | Same path (shared settings) |
+| Electron `dialog.showOpenDialog` | `NSOpenPanel` |
+| `clipboard.writeText` | `NSPasteboard.general.setString` |
+| Tailwind CSS classes | SwiftUI native modifiers + system colors |
+| `electron-updater` | Sparkle (future) |
+
+### Translation Rules
+- **Views:** One SwiftUI view per React component. Use `NavigationSplitView` for sidebar layout.
+- **Models:** Codable structs for API types, SwiftData `@Model` only for persistent data (HistoryEntry).
+- **Services:** Use `actor` for stateful services (KeynoteProcessor), `enum` with static methods for stateless (FileOperations, IndexHtmlGenerator).
+- **Concurrency:** All service calls are `async`. Use `@Sendable` closures for progress callbacks.
+- **HIG:** Use native SwiftUI controls (Toggle, SecureField, ContentUnavailableView). SF Symbols instead of custom SVGs.
+
+### Sync Rules
+- Both apps share `~/Library/Application Support/keynote-deployer/settings.json` for settings.
+- History is separate: Electron uses `history.json`, Swift uses SwiftData.
+- Both apps use the same Vercel team, token, and project naming convention.
+- Both generate identical `index.html` output (IndexHtmlGenerator mirrors keynoteProcessor.ts exactly).
+
+### Known Issues the Swift Build Must Respect
+- Vercel truncates long subdomains → always resolve via `targets.production.alias` API
+- Filter projects list by cross-referencing with local deployment history
+- All 7 HiDPI fixes are idempotent → safe to re-process
+- Build output must be outside iCloud Drive (use `/tmp/`)
+
+### Decision Protocol
+STOP and report blockers, never silently work around them.
+
+### Advancement Protocol
+1. Check PARITY.md for next batch of TODO/Stub features
+2. Read the Electron source for those features
+3. Implement SwiftUI equivalents
+4. Build-verify with xcodebuild
+5. Update PARITY.md
+6. Commit with `/ship`
+
+### Swift Build Commands
+```bash
+cd swift-app && xcodegen generate && xcodebuild build -scheme KeynoteDeployer -destination "platform=macOS" -quiet
+```
+
+### Swift Important Files
+| File | Purpose |
+|---|---|
+| `swift-app/project.yml` | XcodeGen project definition |
+| `swift-app/Sources/App/KeynoteDeployerApp.swift` | App entry point + menu commands |
+| `swift-app/Sources/Services/KeynoteProcessor.swift` | 7 HiDPI fixes (actor) |
+| `swift-app/Sources/Services/IndexHtmlGenerator.swift` | index.html generation |
+| `swift-app/Sources/Services/VercelAPI.swift` | Vercel REST API client |
+| `swift-app/Sources/Services/VercelDeployer.swift` | Vercel CLI deployment |
+| `swift-app/Sources/Services/FileOperations.swift` | Settings, validation, token detection |
+| `swift-app/Sources/Views/DeployView.swift` | 4-phase deploy workflow |
+| `swift-app/Sources/Views/ProjectsView.swift` | Vercel projects list |
+| `swift-app/Sources/Views/HistoryView.swift` | SwiftData deployment history |
+| `swift-app/Sources/Views/SettingsView.swift` | Vercel config + preferences |
+
 ## Update Protocol
 When Claude makes a mistake: "Update CLAUDE.md so you don't make that mistake again."
