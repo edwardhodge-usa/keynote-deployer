@@ -280,17 +280,17 @@ struct DeployView: View {
                 folderPath = url.path
                 metadata = meta
 
+                // Load settings once for prefix + secure embed default
+                let settings = (try? FileOperations.loadSettings()) ?? .default
+
                 // Use selectedProject if provided, otherwise generate from title
                 if let selectedProject {
                     projectName = selectedProject
                     onProjectUsed()
                 } else {
-                    let settings = (try? FileOperations.loadSettings()) ?? .default
                     projectName = settings.projectNamePrefix + AppConfig.toKebabCase(meta.title)
                 }
 
-                // Load secure embed default from settings
-                let settings = (try? FileOperations.loadSettings()) ?? .default
                 secureEmbed = settings.secureEmbed
 
                 phase = .confirm

@@ -59,9 +59,10 @@ actor VercelAPI {
         return response.projects.filter { deployedNames.contains($0.name) }
     }
 
-    /// Delete a Vercel project by ID.
-    func deleteProject(id: String) async throws {
-        let url = URL(string: "https://api.vercel.com/v9/projects/\(id)?teamId=\(teamId)")!
+    /// Delete a Vercel project by name or ID (Vercel API v9 accepts either).
+    func deleteProject(name: String) async throws {
+        let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? name
+        let url = URL(string: "https://api.vercel.com/v9/projects/\(encoded)?teamId=\(teamId)")!
         var req = URLRequest(url: url)
         req.httpMethod = "DELETE"
         req.allHTTPHeaderFields = authHeaders

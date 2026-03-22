@@ -96,7 +96,7 @@ struct ProjectsView: View {
         do {
             let settings = try FileOperations.loadSettings()
             let api = VercelAPI(token: settings.vercelToken, teamId: settings.vercelTeamId)
-            try await api.deleteProject(id: project.id)
+            try await api.deleteProject(name: project.name)
             projects.removeAll { $0.id == project.id }
         } catch {
             // Deletion failed — leave in list

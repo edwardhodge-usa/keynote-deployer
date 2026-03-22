@@ -81,6 +81,8 @@ actor KeynoteProcessor {
         // Step 3: Backup
         onProgress(ProcessingStep(id: 3, label: "Backup main.js", detail: "Checking backup...", status: .active))
         if fm.fileExists(atPath: backupPath) {
+            // Restore clean copy from backup (remove destination first — copyItem throws if it exists)
+            try fm.removeItem(atPath: mainJsPath)
             try fm.copyItem(atPath: backupPath, toPath: mainJsPath)
             onProgress(ProcessingStep(id: 3, label: "Backup main.js", detail: "Restored from backup", status: .completed))
         } else {

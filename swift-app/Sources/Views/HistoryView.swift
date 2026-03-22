@@ -111,7 +111,8 @@ struct HistoryView: View {
             let settings = try FileOperations.loadSettings()
             if !settings.vercelToken.isEmpty {
                 let api = VercelAPI(token: settings.vercelToken, teamId: settings.vercelTeamId)
-                try await api.deleteProject(id: entry.projectName)
+                // Vercel API v9 accepts project name or ID in the path
+                try await api.deleteProject(name: entry.projectName)
             }
         } catch {
             // Vercel delete failed — still remove locally

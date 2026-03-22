@@ -44,10 +44,23 @@ enum VercelDeployer {
         process.standardError = stderrPipe
 
         try process.run()
+
+        // Drain pipes on background threads to avoid deadlock
+        // (if pipe buffer fills before waitUntilExit, child blocks and we hang)
+        let stdoutData: Data = await withUnsafeContinuation { cont in
+            DispatchQueue.global().async {
+                cont.resume(returning: stdoutPipe.fileHandleForReading.readDataToEndOfFile())
+            }
+        }
+        let stderrData: Data = await withUnsafeContinuation { cont in
+            DispatchQueue.global().async {
+                cont.resume(returning: stderrPipe.fileHandleForReading.readDataToEndOfFile())
+            }
+        }
         process.waitUntilExit()
 
-        let stdout = String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        let stderr = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
+        let stderr = String(data: stderrData, encoding: .utf8) ?? ""
         let output = stdout + "\n" + stderr
 
         guard output.contains("Aliased:") || output.contains("Production:") else {
