@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProcessingStep",
+  "description": "Status of a single step in the processing pipeline",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer",
+      "description": "Step number (1-16)"
+    },
+    "label": {
+      "type": "string",
+      "description": "Human-readable step name"
+    },
+    "detail": {
+      "type": "string",
+      "description": "Current status detail message"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "active", "completed", "skipped", "error"],
+      "description": "Step execution status"
+    },
+    "error": {
+      "type": "string",
+      "description": "Error message if status is error"
+    }
+  },
+  "required": ["id", "label", "detail", "status"]
+}

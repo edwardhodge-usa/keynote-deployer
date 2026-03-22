@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HistoryEntry",
+  "description": "Record of a completed Keynote deployment",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier (timestamp-based)"
+    },
+    "projectName": {
+      "type": "string",
+      "description": "Vercel project name (kebab-case)"
+    },
+    "title": {
+      "type": "string",
+      "description": "Keynote presentation title"
+    },
+    "slideCount": {
+      "type": "integer",
+      "description": "Number of slides"
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Production deployment URL"
+    },
+    "folderPath": {
+      "type": "string",
+      "description": "Local filesystem path of the Keynote export folder"
+    },
+    "date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 deployment timestamp"
+    },
+    "fixesApplied": {
+      "type": "integer",
+      "description": "Number of HiDPI fixes applied"
+    }
+  },
+  "required": ["id", "projectName", "title", "slideCount", "url", "folderPath", "date", "fixesApplied"]
+}

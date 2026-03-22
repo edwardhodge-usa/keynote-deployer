@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VercelProject",
+  "description": "Vercel project metadata from REST API",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Vercel project ID"
+    },
+    "name": {
+      "type": "string",
+      "description": "Project name (kebab-case)"
+    },
+    "accountId": {
+      "type": "string",
+      "description": "Vercel account/team ID"
+    },
+    "createdAt": {
+      "type": "integer",
+      "description": "Unix timestamp of project creation"
+    },
+    "updatedAt": {
+      "type": "integer",
+      "description": "Unix timestamp of last update"
+    },
+    "productionUrl": {
+      "type": "string",
+      "description": "Production .vercel.app domain (may be truncated for long names)"
+    },
+    "latestDeployment": {
+      "type": "object",
+      "properties": {
+        "url": { "type": "string" },
+        "createdAt": { "type": "integer" },
+        "state": {
+          "type": "string",
+          "enum": ["READY", "ERROR", "BUILDING", "QUEUED", "CANCELED"]
+        }
+      }
+    }
+  },
+  "required": ["id", "name", "accountId"]
+}

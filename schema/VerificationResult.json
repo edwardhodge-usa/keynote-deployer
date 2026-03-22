@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VerificationResult",
+  "description": "Result of post-deployment verification checks",
+  "type": "object",
+  "properties": {
+    "success": {
+      "type": "boolean"
+    },
+    "url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "mainJsVerified": {
+      "type": "boolean",
+      "description": "Whether patched main.js was found in deployment"
+    },
+    "indexHtmlVerified": {
+      "type": "boolean",
+      "description": "Whether generated index.html was found in deployment"
+    },
+    "fixes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "fixNumber": { "type": "integer" },
+          "name": { "type": "string" },
+          "found": { "type": "boolean" },
+          "pattern": { "type": "string" }
+        },
+        "required": ["fixNumber", "name", "found", "pattern"]
+      }
+    },
+    "totalFixesFound": {
+      "type": "integer"
+    },
+    "totalFixesMissing": {
+      "type": "integer"
+    },
+    "error": {
+      "type": "string"
+    }
+  },
+  "required": ["success", "url", "mainJsVerified", "indexHtmlVerified", "fixes", "totalFixesFound", "totalFixesMissing"]
+}

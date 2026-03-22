@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "KeynoteMetadata",
+  "description": "Metadata parsed from a Keynote HTML export's header.json",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Presentation title from header.json"
+    },
+    "slideCount": {
+      "type": "integer",
+      "description": "Number of slides in the presentation"
+    },
+    "width": {
+      "type": "integer",
+      "description": "Slide width in pixels (default 1920)"
+    },
+    "height": {
+      "type": "integer",
+      "description": "Slide height in pixels (default 1080)"
+    }
+  },
+  "required": ["title", "slideCount", "width", "height"]
+}

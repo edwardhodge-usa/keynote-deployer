@@ -18,6 +18,9 @@ Update this file after every correction.
 **2026-03-08** - `electron-builder` codesign fails with "resource fork, Finder information, or similar detritus not allowed" when building inside iCloud Drive -> Build with output dir outside iCloud: `npx electron-builder --config.directories.output=/tmp/keynote-deployer-release`
 **2026-03-08** - Vercel truncates long project subdomains (e.g. 36-char name → 30-char) → Never construct URL as `${name}.vercel.app`; read actual domain from `targets.production.alias` via Vercel API
 **2026-03-08** - Projects view showed all team projects (including imaginelab-portal) → Filter by cross-referencing with local `history.json` deployed project names
+**2026-03-21** - iCloud Keynote embeds: strip `#fragment` from share URL, add `?embed=true` → Apple returns `frame-ancestors *` and loads lightweight embed viewer. Without `?embed=true`, `frame-ancestors *.icloud.com:443` blocks all embedding
+**2026-03-21** - GIF slide detection: simple per-frame diff threshold fails (misses dissolves, creates false 1-frame "transitions") → Use "quiet runs" algorithm: find 8+ consecutive frames with diff < 0.3, those are the slides. Everything between is transition
+**2026-03-21** - `npx electron-builder` without `npx vite build` first → "dist-electron/main.js does not exist". Must run Vite build before electron-builder since `rm -rf dist dist-electron` cleans both
 
 ## Key Commands
 ```bash
