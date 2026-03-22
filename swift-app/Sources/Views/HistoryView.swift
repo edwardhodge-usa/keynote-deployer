@@ -5,6 +5,9 @@ struct HistoryView: View {
     @Query(sort: \HistoryEntry.date, order: .reverse) private var entries: [HistoryEntry]
     @Environment(\.modelContext) private var modelContext
     @State private var confirmingDelete: String?
+    @State private var deletingId: String?
+    @State private var copiedId: String?
+    @State private var deleteErrors: [String: String] = [:]
 
     var body: some View {
         Group {
@@ -44,9 +47,13 @@ struct HistoryView: View {
                         .textSelection(.enabled)
                     Spacer()
 
-                    Button("Copy URL") {
+                    Button(copiedId == entry.id ? "Copied!" : "Copy URL") {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(entry.url, forType: .string)
+                        copiedId = entry.id
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            if copiedId == entry.id { copiedId = nil }
+                        }
                     }
                     .controlSize(.small)
 
@@ -57,15 +64,64 @@ struct HistoryView: View {
                     }
                     .controlSize(.small)
 
-                    Button(role: .destructive) {
-                        modelContext.delete(entry)
-                    } label: {
-                        Image(systemName: "trash")
+                    if confirmingDelete == entry.id {
+                        Button("Cancel") {
+                            confirmingDelete = nil
+                        }
+                        .controlSize(.small)
+                        .disabled(deletingId == entry.id)
+
+                        Button("Confirm Delete", role: .destructive) {
+                            Task { await deleteEntry(entry) }
+                        }
+                        .controlSize(.small)
+                        .disabled(deletingId == entry.id)
+                    } else {
+                        Button(role: .destructive) {
+                            confirmingDelete = entry.id
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .controlSize(.small)
                     }
-                    .controlSize(.small)
+                }
+
+                if confirmingDelete == entry.id {
+                    Text("This will permanently delete \(entry.projectName).vercel.app")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
+                if let error = deleteErrors[entry.id] {
+                    Text("\(error) — removed from history")
+                        .font(.caption)
+                        .foregroundStyle(.red)
                 }
             }
             .padding(.vertical, 4)
         }
+    }
+
+    private func deleteEntry(_ entry: HistoryEntry) async {
+        deletingId = entry.id
+        deleteErrors[entry.id] = nil
+
+        // Try to delete from Vercel first
+        do {
+            let settings = try FileOperations.loadSettings()
+            if !settings.vercelToken.isEmpty {
+                let api = VercelAPI(token: settings.vercelToken, teamId: settings.vercelTeamId)
+                try await api.deleteProject(id: entry.projectName)
+            }
+        } catch {
+            // Vercel delete failed — still remove locally
+            deleteErrors[entry.id] = "Vercel deletion failed"
+        }
+
+        // Always remove from local history
+        modelContext.delete(entry)
+
+        deletingId = nil
+        confirmingDelete = nil
     }
 }
