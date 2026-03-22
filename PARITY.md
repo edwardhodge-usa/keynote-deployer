@@ -7,8 +7,8 @@ Swift: SwiftUI + SwiftData (macOS 15+, Swift 6.2)
 
 | Feature | Primary | Swift | Notes |
 |---|---|---|---|
-| Folder selection (file picker) | Done | Stub | NSOpenPanel wired, validation TODO |
-| Drag-and-drop folder input | Done | Stub | onDrop handler wired, validation TODO |
+| Folder selection (file picker) | Done | Done | NSOpenPanel + validateKeynoteFolder wired |
+| Drag-and-drop folder input | Done | Done | onDrop → validateFolder → confirm phase |
 | Keynote folder validation (header.json + main.js) | Done | Done | FileOperations.validateKeynoteFolder |
 | Metadata parsing from header.json | Done | Done | KeynoteMetadata with flexible key decoding |
 | HiDPI Fix 1: zC scale (PDF rasterization) | Done | Done | KeynoteProcessor.fixes[0] |
@@ -37,13 +37,13 @@ Swift: SwiftUI + SwiftData (macOS 15+, Swift 6.2)
 
 | Feature | Primary | Swift | Notes |
 |---|---|---|---|
-| Select phase (drop zone UI) | Done | Stub | View exists, validation not wired |
-| Confirm phase (metadata, project name, secure toggle) | Done | Stub | View exists, pipeline not wired |
-| Processing phase (16-step progress) | Done | Stub | DeployProgressView exists, not connected |
-| Complete phase (URL copy, Framer embed copy, open) | Done | Stub | View exists, no pipeline result |
-| Error phase (retry) | Done | Stub | View exists, no pipeline connection |
-| Framer embed code generation + copy | Done | TODO | Not in Swift complete phase yet |
-| Auto-copy URL to clipboard on completion | Done | TODO | Need to wire to settings |
+| Select phase (drop zone UI) | Done | Done | NSOpenPanel + onDrop + validation |
+| Confirm phase (metadata, project name, secure toggle) | Done | Done | Full metadata display, kebab-case name gen, prefix |
+| Processing phase (16-step progress) | Done | Done | DeployProgressView connected via onProgress callbacks |
+| Complete phase (URL copy, Framer embed copy, open) | Done | Done | Copy URL, copy Framer embed, open in browser |
+| Error phase (retry) | Done | Done | Shows progress + error, retry calls startDeploy() |
+| Framer embed code generation + copy | Done | Done | iframe string + NSPasteboard |
+| Auto-copy URL to clipboard on completion | Done | Done | Reads settings.autoCopyUrl |
 
 ## Projects View
 
@@ -72,15 +72,15 @@ Swift: SwiftUI + SwiftData (macOS 15+, Swift 6.2)
 
 | Feature | Primary | Swift | Notes |
 |---|---|---|---|
-| Vercel token input (secure field) | Done | Stub | SecureField exists, save TODO |
-| Vercel token auto-detect from CLI config | Done | Stub | FileOperations ready, button not wired |
-| Token status badge (Connected/Not Set) | Done | Stub | UI exists, logic TODO |
-| Team ID input | Done | Stub | TextField exists, save TODO |
-| Project name prefix | Done | Stub | TextField exists, save TODO |
-| Auto-copy URL toggle | Done | Stub | Toggle exists, save TODO |
-| Runtime verification toggle | Done | Stub | Toggle exists, save TODO |
-| Secure embed toggle | Done | TODO | Not in Settings yet (only in Deploy) |
-| Embed allowed domains input | Done | TODO | Not in Settings yet |
+| Vercel token input (secure field) | Done | Done | SecureField + FileOperations.saveSettings |
+| Vercel token auto-detect from CLI config | Done | Done | FileOperations.detectVercelToken wired |
+| Token status badge (Connected/Not Set) | Done | Done | Updates on load, save, and detect |
+| Team ID input | Done | Done | TextField + onChange save |
+| Project name prefix | Done | Done | TextField + onChange save |
+| Auto-copy URL toggle | Done | Done | Toggle + onChange save |
+| Runtime verification toggle | Done | Done | Toggle + onChange save |
+| Secure embed toggle | Done | Done | New embed section in SettingsView |
+| Embed allowed domains input | Done | Done | TextField + onChange save |
 
 ## App Chrome
 
@@ -97,7 +97,7 @@ Swift: SwiftUI + SwiftData (macOS 15+, Swift 6.2)
 ## Summary
 
 - **Total features:** 47
-- **Done:** 22 (services + models complete)
-- **Stub:** 17 (views exist but not wired to services)
-- **TODO:** 8 (not started)
-- **Parity:** 47% done, 83% scaffolded
+- **Done:** 38 (full pipeline + settings + deploy wired)
+- **Stub:** 3 (Projects view API calls)
+- **TODO:** 6 (verification, app chrome polish, Projects wiring)
+- **Parity:** 81% done, 94% scaffolded

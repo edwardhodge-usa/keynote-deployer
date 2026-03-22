@@ -1,8 +1,11 @@
 import SwiftUI
+import SwiftData
 
 struct DeployView: View {
     let selectedProject: String?
     let onProjectUsed: () -> Void
+
+    @Environment(\.modelContext) private var modelContext
 
     enum Phase {
         case select, confirm, processing, complete, error
@@ -17,6 +20,8 @@ struct DeployView: View {
     @State private var errorMessage = ""
     @State private var secureEmbed = true
     @State private var isDropTargeted = false
+    @State private var isValidating = false
+    @State private var copied: String?
 
     var body: some View {
         ScrollView {
@@ -52,14 +57,22 @@ struct DeployView: View {
 
             // Drop zone
             VStack(spacing: 12) {
-                Image(systemName: "folder.badge.plus")
-                    .font(.system(size: 36))
-                    .foregroundStyle(.tertiary)
-                Text("Click to browse or drag & drop")
-                    .font(.body.weight(.medium))
-                Text("Select the exported Keynote folder containing assets/player/main.js")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                if isValidating {
+                    ProgressView()
+                        .controlSize(.regular)
+                    Text("Validating folder...")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Image(systemName: "folder.badge.plus")
+                        .font(.system(size: 36))
+                        .foregroundStyle(.tertiary)
+                    Text("Click to browse or drag & drop")
+                        .font(.body.weight(.medium))
+                    Text("Select the exported Keynote folder containing assets/player/main.js")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 40)
@@ -96,22 +109,37 @@ struct DeployView: View {
                     LabeledContent("Title", value: metadata.title)
                     LabeledContent("Slides", value: "\(metadata.slideCount)")
                     LabeledContent("Dimensions", value: "\(metadata.width) x \(metadata.height)")
+                    LabeledContent("Folder") {
+                        Text(folderPath)
+                            .font(.caption.monospaced())
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                 }
 
                 TextField("Project Name", text: $projectName)
                     .textFieldStyle(.roundedBorder)
+                    .font(.callout.monospaced())
 
-                Toggle("Secure Embed", isOn: $secureEmbed)
+                if !projectName.isEmpty {
+                    Text(selectedProject != nil
+                        ? "Updating existing project: \(projectName)"
+                        : "URL will be: https://\(projectName).vercel.app")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+
+                Toggle("Secure Embed — disable downloads, restrict embedding to portal", isOn: $secureEmbed)
                     .toggleStyle(.switch)
+                    .font(.caption)
 
                 HStack(spacing: 12) {
                     Button("Back") { reset() }
                     Button("Process & Deploy") {
-                        // TODO: Implement pipeline
-                        phase = .processing
+                        startDeploy()
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(projectName.isEmpty)
+                    .disabled(projectName.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }
@@ -145,15 +173,37 @@ struct DeployView: View {
                 Text("\(result.fixesApplied) fixes applied, \(result.fixesSkipped) skipped")
                     .foregroundStyle(.secondary)
 
+                // URL + Copy
                 GroupBox {
-                    HStack {
-                        Text(result.url)
-                            .font(.caption.monospaced())
-                            .textSelection(.enabled)
-                        Spacer()
-                        Button("Copy URL") {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(result.url, forType: .string)
+                    VStack(spacing: 12) {
+                        HStack {
+                            Text(result.url)
+                                .font(.caption.monospaced())
+                                .textSelection(.enabled)
+                            Spacer()
+                            Button(copied == "url" ? "Copied!" : "Copy URL") {
+                                copyText(result.url, label: "url")
+                            }
+                            .controlSize(.small)
+                        }
+
+                        Divider()
+
+                        HStack(spacing: 8) {
+                            Button(copied == "embed" ? "Copied!" : "Copy Framer Embed") {
+                                let embed = "<iframe src=\"\(result.url)\" style=\"width:100%;height:100%;border:none\" allowfullscreen></iframe>"
+                                copyText(embed, label: "embed")
+                            }
+                            .controlSize(.small)
+
+                            Spacer()
+
+                            Button("Open in Browser") {
+                                if let url = URL(string: result.url) {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            }
+                            .controlSize(.small)
                         }
                     }
                 }
@@ -174,6 +224,8 @@ struct DeployView: View {
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(.red)
 
+            DeployProgressView(steps: steps)
+
             if !errorMessage.isEmpty {
                 Text(errorMessage)
                     .font(.callout.monospaced())
@@ -185,11 +237,8 @@ struct DeployView: View {
 
             HStack(spacing: 12) {
                 Button("Start Over") { reset() }
-                Button("Retry") {
-                    // TODO: Retry pipeline
-                    phase = .processing
-                }
-                .buttonStyle(.borderedProminent)
+                Button("Retry") { startDeploy() }
+                    .buttonStyle(.borderedProminent)
             }
         }
     }
@@ -220,9 +269,176 @@ struct DeployView: View {
     }
 
     private func validateFolder(_ url: URL) {
-        // TODO: Call FileOperations.validateKeynoteFolder
-        folderPath = url.path
+        isValidating = true
         errorMessage = ""
+
+        do {
+            let validation = try FileOperations.validateKeynoteFolder(url.path)
+            isValidating = false
+
+            if validation.valid, let meta = validation.metadata {
+                folderPath = url.path
+                metadata = meta
+
+                // Use selectedProject if provided, otherwise generate from title
+                if let selectedProject {
+                    projectName = selectedProject
+                    onProjectUsed()
+                } else {
+                    let settings = (try? FileOperations.loadSettings()) ?? .default
+                    projectName = settings.projectNamePrefix + AppConfig.toKebabCase(meta.title)
+                }
+
+                // Load secure embed default from settings
+                let settings = (try? FileOperations.loadSettings()) ?? .default
+                secureEmbed = settings.secureEmbed
+
+                phase = .confirm
+            } else {
+                errorMessage = validation.error ?? "Invalid folder"
+            }
+        } catch {
+            isValidating = false
+            errorMessage = "Validation failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func startDeploy() {
+        guard let metadata else { return }
+        phase = .processing
+        steps = ProcessingStep.allSteps
+
+        Task {
+            do {
+                let settings = try FileOperations.loadSettings()
+                guard !settings.vercelToken.isEmpty else {
+                    await MainActor.run {
+                        errorMessage = "Vercel token not configured. Go to Settings first."
+                        phase = .error
+                    }
+                    return
+                }
+
+                // Steps 1-11: Process keynote folder
+                let processor = KeynoteProcessor()
+                let processResult = try await processor.process(
+                    folderPath: folderPath,
+                    metadata: metadata,
+                    secureEmbed: secureEmbed,
+                    onProgress: { step in
+                        Task { @MainActor in
+                            updateStep(step)
+                        }
+                    }
+                )
+
+                // Step 12: Ensure Vercel project
+                await MainActor.run {
+                    updateStep(ProcessingStep(id: 12, label: "Vercel project", detail: "Creating or finding project...", status: .active))
+                }
+
+                let api = VercelAPI(token: settings.vercelToken, teamId: settings.vercelTeamId)
+                let project = try await api.ensureProject(name: projectName)
+
+                await MainActor.run {
+                    updateStep(ProcessingStep(id: 12, label: "Vercel project", detail: "Project: \(project.name)", status: .completed))
+                }
+
+                // Step 13: Deploy via CLI
+                let deployResult = try await VercelDeployer.deploy(
+                    folderPath: folderPath,
+                    projectId: project.id,
+                    token: settings.vercelToken,
+                    teamId: settings.vercelTeamId,
+                    secureEmbed: secureEmbed,
+                    embedAllowedDomains: settings.embedAllowedDomains,
+                    onProgress: { step in
+                        Task { @MainActor in
+                            updateStep(step)
+                        }
+                    }
+                )
+
+                guard deployResult.success else {
+                    await MainActor.run {
+                        errorMessage = deployResult.error ?? "Deployment failed"
+                        phase = .error
+                    }
+                    return
+                }
+
+                // Resolve actual production URL
+                let prodUrl = (try? await api.resolveProductionUrl(projectId: project.id))
+                    ?? "https://\(projectName).vercel.app"
+
+                // Steps 14-15: Verification (skip for now)
+                await MainActor.run {
+                    updateStep(ProcessingStep(id: 14, label: "Verify deployment", detail: "Skipped", status: .skipped))
+                    updateStep(ProcessingStep(id: 15, label: "Runtime verification", detail: "Skipped", status: .skipped))
+                    updateStep(ProcessingStep(id: 16, label: "Complete", detail: prodUrl, status: .completed))
+                }
+
+                // Save to SwiftData history
+                let entry = HistoryEntry(
+                    projectName: projectName,
+                    title: metadata.title,
+                    slideCount: metadata.slideCount,
+                    url: prodUrl,
+                    folderPath: folderPath,
+                    fixesApplied: processResult.fixesApplied
+                )
+
+                await MainActor.run {
+                    modelContext.insert(entry)
+
+                    // Auto-copy URL if enabled
+                    if settings.autoCopyUrl {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(prodUrl, forType: .string)
+                    }
+
+                    result = PipelineResult(
+                        success: true,
+                        projectName: projectName,
+                        title: metadata.title,
+                        slideCount: metadata.slideCount,
+                        url: prodUrl,
+                        fixesApplied: processResult.fixesApplied,
+                        fixesSkipped: processResult.fixesSkipped,
+                        verification: nil,
+                        error: nil
+                    )
+                    phase = .complete
+                }
+
+                // Save last folder path
+                var updatedSettings = settings
+                updatedSettings.lastFolderPath = folderPath
+                try? FileOperations.saveSettings(updatedSettings)
+
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    phase = .error
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func updateStep(_ step: ProcessingStep) {
+        if let index = steps.firstIndex(where: { $0.id == step.id }) {
+            steps[index] = step
+        }
+    }
+
+    private func copyText(_ text: String, label: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        copied = label
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            if copied == label { copied = nil }
+        }
     }
 
     private func reset() {
@@ -233,6 +449,7 @@ struct DeployView: View {
         steps = ProcessingStep.allSteps
         result = nil
         errorMessage = ""
+        copied = nil
         onProjectUsed()
     }
 }

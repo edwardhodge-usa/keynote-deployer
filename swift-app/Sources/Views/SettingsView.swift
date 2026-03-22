@@ -15,12 +15,23 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 24) {
                 vercelSection
                 deploymentSection
+                embedSection
             }
             .padding(32)
             .frame(maxWidth: 520)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle("Settings")
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                if showSavedBadge {
+                    Text("Saved")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                        .transition(.opacity)
+                }
+            }
+        }
         .task { loadSettings() }
     }
 
@@ -114,20 +125,79 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Embed Section
+
+    private var embedSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("SECURE EMBED")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .tracking(1)
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle("Enable Secure Embed by default", isOn: $settings.secureEmbed)
+                        .onChange(of: settings.secureEmbed) { save() }
+
+                    Text("Disables downloads and restricts iframe embedding to allowed domains.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+
+                    Divider()
+
+                    LabeledContent("Allowed Domains") {
+                        TextField("*.example.com *.framer.app", text: $settings.embedAllowedDomains)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.caption.monospaced())
+                            .frame(maxWidth: 300)
+                            .onChange(of: settings.embedAllowedDomains) { save() }
+                    }
+
+                    Text("Space-separated domains for CSP frame-ancestors header.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        }
+    }
+
     // MARK: - Actions
 
     private func loadSettings() {
-        // TODO: Load from SettingsService
+        do {
+            settings = try FileOperations.loadSettings()
+        } catch {
+            // Fall back to defaults on error
+            settings = .default
+        }
         isLoading = false
         tokenStatus = settings.vercelToken.isEmpty ? .missing : .valid
     }
 
     private func save() {
-        // TODO: Save via SettingsService
-        tokenStatus = settings.vercelToken.isEmpty ? .missing : .valid
+        do {
+            try FileOperations.saveSettings(settings)
+            tokenStatus = settings.vercelToken.isEmpty ? .missing : .valid
+            withAnimation {
+                showSavedBadge = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                withAnimation {
+                    showSavedBadge = false
+                }
+            }
+        } catch {
+            // Settings save failed — non-critical, user can retry
+        }
     }
 
     private func detectToken() {
-        // TODO: Call SettingsService.detectVercelToken
+        let detection = FileOperations.detectVercelToken()
+        if detection.found, let token = detection.token {
+            settings.vercelToken = token
+            save()
+        } else {
+            tokenStatus = .missing
+        }
     }
 }
