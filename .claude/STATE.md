@@ -1,26 +1,28 @@
 # Session State
 
-**Last updated:** 2026-03-08 evening
-**Goal:** Fix 404 URL bug, filter projects, full HIG compliance pass, UI redesign
-**Plan:** None
+**Last updated:** 2026-03-21 17:30
+**Goal:** Add GIF slide viewer, iCloud embed support, and Secure Embed mode
+**Plan:** docs/superpowers/plans/2026-03-21-gif-slide-viewer.md + 2026-03-21-secure-embed.md
 
 ## Current Task
-**What:** Complete HIG overhaul + URL fix + Projects redesign + build + ship
-**Status:** Completed — committed, pushed, built, deployed to /Applications/Custom/
+**What:** Both features complete, released as v1.0.2
+**Status:** Completed — all code shipped, built, and published to GitHub Releases
 
 ## Context (for next session)
-- Vercel truncates long subdomains — app now reads `targets.production.alias` from API
-- Projects view filtered by cross-referencing with local `history.json`
-- ILS typography override applied: 15px body, 13px supporting, 11px captions
-- Projects view has inline iframe preview thumbnails (120x75, scaled from 1024x640)
-- Pre-existing TS6305 error (composite build artifact) — doesn't affect Vite build
+- GIF slide viewer uses "quiet runs" algorithm (8+ frames with diff < 0.3) — much better than simple threshold
+- iCloud embed works via `?embed=true` parameter — strips transitions/builds but shows static slides
+- Secure Embed mode injects right-click/drag/save prevention + writes vercel.json with CSP frame-ancestors
+- Default allowed domains: `*.imaginelabstudios.com *.framer.app` (configurable in settings)
+- Bumper lanes flagged changes — deferred structured review to next session
 
 ## Next Step
-Bump version to 1.1.0 and create a GitHub Release with `/release` if auto-updater distribution is desired.
+Test Secure Embed end-to-end: deploy a presentation with Secure Embed enabled, embed in Framer, verify CSP headers block embedding from unauthorized domains and right-click is disabled.
 
 ## Verification Goals
-- [x] URLs in app match Vercel dashboard URLs
-- [x] Projects view only shows Keynote Deployer projects
-- [x] HIG violation checklist passes (Section 13)
-- [x] Build succeeds and .app copied to /Applications/Custom/
-- [x] All changes committed and pushed to GitHub
+- [x] GIF slide viewer correctly detects all 20 slides from test GIF
+- [x] Forward button plays transitions at native speed
+- [x] iCloud embed works via ?embed=true in side-by-side comparison
+- [x] Secure Embed toggle appears in deploy confirm phase
+- [x] App builds clean (Vite + electron-builder)
+- [x] v1.0.2 released to GitHub
+- [ ] Secure Embed tested end-to-end with real Vercel deployment + Framer embed
