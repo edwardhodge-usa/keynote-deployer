@@ -47,6 +47,7 @@
 		4A3AD033AAD0411C7CA1B6CD /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		6014F6E3BFFA0FEA826D475F /* HistoryEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryEntry.swift; sourceTree = "<group>"; };
 		643B10849DA333A7037B54A5 /* KeynoteDeployer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KeynoteDeployer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		66C0C927B53D57B936E42EA7 /* Sparkle.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Sparkle.xcconfig; sourceTree = "<group>"; };
 		6E9CE1B85FB4D719BE7B0EC8 /* ProcessingStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessingStep.swift; sourceTree = "<group>"; };
 		748C27488D67FC5F775B7ABB /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		91B38AC4D9349306424DE153 /* NavigationTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationTab.swift; sourceTree = "<group>"; };
@@ -56,6 +57,7 @@
 		B55FB9E316B645CFD0C08B4F /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		CE7E2BD93E4F1F90654BA3E7 /* KeynoteMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeynoteMetadata.swift; sourceTree = "<group>"; };
 		E3C9945227E19D94B300923C /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		EC7E6FAEC55BC08F00535E8C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F23DFAEC2277359D2ECF9D69 /* DeployView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeployView.swift; sourceTree = "<group>"; };
 		F4F9F98F1120CAF61D82D80B /* KeynoteDeployerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeynoteDeployerApp.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -125,6 +127,7 @@
 		8B1ECA0656CE3BA8B9E216CF /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				EC7E6FAEC55BC08F00535E8C /* Info.plist */,
 				F6CE63646D32F7965E61F662 /* App */,
 				F86DB4CB5385252AA5F74EBF /* Config */,
 				7105A5427370184AA6743664 /* Models */,
@@ -138,6 +141,7 @@
 			isa = PBXGroup;
 			children = (
 				8B1ECA0656CE3BA8B9E216CF /* Sources */,
+				FB90BF407FB75D72CA26EA82 /* swift-app */,
 				043224CFEB6D8A5788700196 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -156,6 +160,15 @@
 				390DDF13A88F1C59BE62D165 /* AppConfig.swift */,
 			);
 			path = Config;
+			sourceTree = "<group>";
+		};
+		FB90BF407FB75D72CA26EA82 /* swift-app */ = {
+			isa = PBXGroup;
+			children = (
+				66C0C927B53D57B936E42EA7 /* Sparkle.xcconfig */,
+			);
+			name = "swift-app";
+			path = .;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -249,17 +262,12 @@
 /* Begin XCBuildConfiguration section */
 		AB3D181AAC80902D5D59A078 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 66C0C927B53D57B936E42EA7 /* Sparkle.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_GENERATION_MODE = GeneratedByXcode;
-				INFOPLIST_KEY_CFBundleDisplayName = "Keynote Deployer";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright 2026 ImagineLab Studios";
-				INFOPLIST_KEY_SUFeedURL = "https://github.com/edwardhodge-usa/keynote-deployer/releases/latest/download/appcast.xml";
-				INFOPLIST_KEY_SUPublicEDKey = "";
+				INFOPLIST_FILE = Sources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -330,17 +338,12 @@
 		};
 		BF086B592E6C07A57E937379 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 66C0C927B53D57B936E42EA7 /* Sparkle.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_GENERATION_MODE = GeneratedByXcode;
-				INFOPLIST_KEY_CFBundleDisplayName = "Keynote Deployer";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright 2026 ImagineLab Studios";
-				INFOPLIST_KEY_SUFeedURL = "https://github.com/edwardhodge-usa/keynote-deployer/releases/latest/download/appcast.xml";
-				INFOPLIST_KEY_SUPublicEDKey = "";
+				INFOPLIST_FILE = Sources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

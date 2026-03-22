@@ -1,0 +1,6 @@
+// Sparkle auto-updater configuration
+// Copy this file to Sparkle.xcconfig and fill in your values
+// Sparkle.xcconfig is gitignored — never commit real keys
+
+SPARKLE_FEED_URL = https://github.com/YOUR-ORG/YOUR-REPO/releases/latest/download/appcast.xml
+SPARKLE_ED_KEY = YOUR_ED25519_PUBLIC_KEY_HERE
