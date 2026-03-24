@@ -1,6 +1,7 @@
 import type {
   AppSettings,
   ProcessRequest,
+  GifDeployRequest,
   PipelineResult,
   IpcResponse,
   FolderValidation,
@@ -15,6 +16,7 @@ export interface ElectronAPI {
   selectFolder: () => Promise<IpcResponse<string>>
   validateKeynoteFolder: (folderPath: string) => Promise<IpcResponse<FolderValidation>>
   processAndDeploy: (request: ProcessRequest) => Promise<IpcResponse<PipelineResult>>
+  deployGif: (request: GifDeployRequest) => Promise<IpcResponse<PipelineResult>>
   loadSettings: () => Promise<IpcResponse<AppSettings>>
   saveSettings: (settings: Partial<AppSettings>) => Promise<IpcResponse<void>>
   detectVercelToken: () => Promise<IpcResponse<TokenDetection>>

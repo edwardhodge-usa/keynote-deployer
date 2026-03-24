@@ -18,7 +18,11 @@ interface ParsedGif {
   frameDelay: number
 }
 
-type Phase = 'drop' | 'loading' | 'viewing'
+type Phase = 'drop' | 'loading' | 'viewing' | 'confirm' | 'deploying' | 'complete' | 'error'
+
+function toKebabCase(str: string): string {
+  return str.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+}
 
 export default function GifViewer() {
   const [phase, setPhase] = useState<Phase>('drop')
@@ -28,6 +32,14 @@ export default function GifViewer() {
   const [progress, setProgress] = useState({ text: '', percent: 0 })
   const [currentSlide, setCurrentSlide] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [projectName, setProjectName] = useState('')
+  const [secureEmbed, setSecureEmbed] = useState(true)
+  const [deployResult, setDeployResult] = useState<{ url: string } | null>(null)
+  const [deployError, setDeployError] = useState('')
+  const [deploySteps, setDeploySteps] = useState<any[]>([])
+  const [copied, setCopied] = useState<string | null>(null)
+  const [gifFilePath, setGifFilePath] = useState('')
+  const [gifFileSize, setGifFileSize] = useState(0)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const parsedRef = useRef<ParsedGif | null>(null)
@@ -91,8 +103,12 @@ export default function GifViewer() {
     e.preventDefault()
     e.stopPropagation()
     setDragOver(false)
-    const files = e.dataTransfer.files
-    if (files.length > 0) handleFile(files[0])
+    const file = e.dataTransfer.files[0]
+    if (file) {
+      setGifFilePath((file as any).path || '')
+      setGifFileSize(file.size)
+      handleFile(file)
+    }
   }, [handleFile])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -343,8 +359,77 @@ export default function GifViewer() {
     setIsPlaying(false)
     setPhase('drop')
     clearMessages()
+    setProjectName('')
+    setSecureEmbed(true)
+    setDeployResult(null)
+    setDeployError('')
+    setDeploySteps([])
+    setCopied(null)
+    setGifFilePath('')
+    setGifFileSize(0)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }, [clearMessages])
+
+  // ── Deploy Functions ──
+
+  const startConfirm = async () => {
+    const settingsRes = await window.electron.loadSettings()
+    const prefix = settingsRes.success && settingsRes.data?.projectNamePrefix
+      ? settingsRes.data.projectNamePrefix
+      : ''
+    const baseName = gifFilePath
+      ? gifFilePath.split('/').pop()?.replace(/\.gif$/i, '') || 'presentation'
+      : 'presentation'
+    setProjectName(prefix + toKebabCase(baseName))
+    setPhase('confirm')
+  }
+
+  const startDeploy = async () => {
+    if (!gifFilePath) {
+      setDeployError('No GIF file path available. Try dropping the file again.')
+      setPhase('error')
+      return
+    }
+    setPhase('deploying')
+    setDeploySteps([
+      { id: 1, label: 'Preparing files', detail: '', status: 'pending' },
+      { id: 2, label: 'Creating Vercel project', detail: '', status: 'pending' },
+      { id: 3, label: 'Deploying to Vercel', detail: '', status: 'pending' },
+      { id: 4, label: 'Complete', detail: '', status: 'pending' },
+    ])
+
+    const res = await window.electron.deployGif({
+      gifPath: gifFilePath,
+      projectName,
+      slideCount: parsedRef.current?.slides.length ?? 0,
+      title: gifFilePath.split('/').pop()?.replace(/\.gif$/i, '') || 'GIF Presentation',
+      secureEmbed,
+    })
+
+    if (res.success && res.data?.success) {
+      setDeployResult({ url: res.data.url })
+      setPhase('complete')
+    } else {
+      setDeployError(res.error || res.data?.error || 'Deployment failed')
+      setPhase('error')
+    }
+  }
+
+  const copyText = async (text: string, label: string) => {
+    await window.electron.copyToClipboard(text)
+    setCopied(label)
+    setTimeout(() => setCopied(null), 2000)
+  }
+
+  // Deploy progress listener
+  useEffect(() => {
+    if (phase !== 'deploying') return
+    const handler = (progress: any) => {
+      setDeploySteps(prev => prev.map(s => s.id === progress.step.id ? { ...progress.step } : s))
+    }
+    window.electron.onProcessingProgress(handler)
+    return () => { window.electron.removeAllListeners('processing-progress') }
+  }, [phase])
 
   // Keyboard controls
   useEffect(() => {
@@ -416,7 +501,11 @@ export default function GifViewer() {
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0]
-                if (file) handleFile(file)
+                if (file) {
+                  setGifFilePath((file as any).path || '')
+                  setGifFileSize(file.size)
+                  handleFile(file)
+                }
               }}
             />
           </div>
@@ -481,6 +570,191 @@ export default function GifViewer() {
             <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-3">
               Arrow keys: Previous / Next
             </p>
+
+            <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={startConfirm}
+                className="btn btn-primary w-full"
+              >
+                Deploy to Vercel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {phase === 'confirm' && (
+          <div className="max-w-lg mx-auto">
+            <h1 className="text-2xl font-semibold mb-6">Confirm & Deploy GIF</h1>
+
+            <div className="card p-5 mb-6 space-y-3">
+              <div className="flex justify-between text-[15px]">
+                <span className="text-gray-500 dark:text-gray-400">File</span>
+                <span className="font-medium truncate max-w-[280px]">{gifFilePath.split('/').pop()}</span>
+              </div>
+              <div className="flex justify-between text-[15px]">
+                <span className="text-gray-500 dark:text-gray-400">Slides</span>
+                <span className="font-medium">{parsedRef.current?.slides.length ?? 0}</span>
+              </div>
+              <div className="flex justify-between text-[15px]">
+                <span className="text-gray-500 dark:text-gray-400">Dimensions</span>
+                <span className="font-medium">{parsedRef.current?.width ?? 0} x {parsedRef.current?.height ?? 0}</span>
+              </div>
+              <div className="flex justify-between text-[15px]">
+                <span className="text-gray-500 dark:text-gray-400">Size</span>
+                <span className="font-medium">{(gifFileSize / (1024 * 1024)).toFixed(1)} MB</span>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-[15px] font-medium mb-1.5">Project Name</label>
+              <input
+                type="text"
+                className="input font-mono"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value.toLowerCase())}
+                onBlur={(e) => setProjectName(toKebabCase(e.target.value))}
+                placeholder="my-project-name"
+              />
+              <p className="text-[13px] text-gray-400 mt-1">
+                {projectName ? `URL will be: https://${projectName}.vercel.app` : 'Lowercase letters, numbers, and hyphens only'}
+              </p>
+            </div>
+
+            <label className="flex items-center gap-2 mb-4 text-[13px] text-gray-500 dark:text-gray-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={secureEmbed}
+                onChange={(e) => setSecureEmbed(e.target.checked)}
+                className="rounded"
+              />
+              Secure Embed — disable downloads, restrict embedding to portal
+            </label>
+
+            <div className="flex gap-3">
+              <button onClick={() => setPhase('viewing')} className="btn btn-secondary">
+                Back
+              </button>
+              <button
+                onClick={startDeploy}
+                disabled={!projectName.trim()}
+                className="btn btn-primary flex-1"
+              >
+                Deploy GIF
+              </button>
+            </div>
+          </div>
+        )}
+
+        {phase === 'deploying' && (
+          <div className="max-w-lg mx-auto">
+            <h1 className="text-2xl font-semibold mb-2">Deploying GIF...</h1>
+            <p className="text-[15px] text-gray-500 dark:text-gray-400 mb-6">
+              Generating viewer and deploying to Vercel.
+            </p>
+            <div className="card p-4 space-y-2">
+              {deploySteps.map(step => (
+                <div key={step.id} className="flex items-center gap-2 text-[13px]">
+                  {step.status === 'completed' ? (
+                    <span className="text-green-500">&#10003;</span>
+                  ) : step.status === 'active' ? (
+                    <span className="spinner spinner-sm text-primary" />
+                  ) : step.status === 'error' ? (
+                    <span className="text-red-500">&#10007;</span>
+                  ) : (
+                    <span className="text-gray-400">&#9675;</span>
+                  )}
+                  <span className={step.status === 'active' ? 'text-gray-200' : 'text-gray-500'}>{step.label}</span>
+                  {step.detail && <span className="text-gray-500 ml-auto text-[11px]">{step.detail}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {phase === 'complete' && deployResult && (
+          <div className="max-w-lg mx-auto">
+            <div className="text-center mb-6">
+              <div className="mb-3 flex justify-center">
+                <svg className="w-12 h-12 text-green-500 dark:text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="8,12 11,15 16,9" />
+                </svg>
+              </div>
+              <h1 className="text-2xl font-semibold text-green-600 dark:text-green-400">
+                GIF Deployed Successfully
+              </h1>
+              <p className="text-[15px] text-gray-500 dark:text-gray-400 mt-1">
+                {parsedRef.current?.slides.length ?? 0} slides, interactive viewer live on Vercel
+              </p>
+            </div>
+
+            <div className="card p-5 mb-6">
+              <div className="flex items-center gap-2 mb-4">
+                <input
+                  type="text"
+                  readOnly
+                  className="input font-mono text-[13px] flex-1"
+                  value={deployResult.url}
+                />
+                <button
+                  onClick={() => copyText(deployResult.url, 'url')}
+                  className="btn btn-primary btn-sm whitespace-nowrap"
+                >
+                  {copied === 'url' ? 'Copied!' : 'Copy URL'}
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => copyText(`<iframe src="${deployResult.url}" style="width:100%;height:100%;border:none" allowfullscreen></iframe>`, 'embed')}
+                  className="btn btn-secondary btn-sm flex-1"
+                >
+                  {copied === 'embed' ? 'Copied!' : 'Copy Framer Embed'}
+                </button>
+                <button
+                  onClick={() => window.electron.openUrl(deployResult.url)}
+                  className="btn btn-ghost btn-sm"
+                >
+                  Open in Browser
+                </button>
+              </div>
+            </div>
+
+            <button onClick={loadAnother} className="btn btn-secondary w-full">
+              Deploy Another
+            </button>
+          </div>
+        )}
+
+        {phase === 'error' && (
+          <div className="max-w-lg mx-auto">
+            <div className="text-center mb-6">
+              <div className="mb-3 flex justify-center">
+                <svg className="w-12 h-12 text-red-500 dark:text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="15" y1="9" x2="9" y2="15" />
+                  <line x1="9" y1="9" x2="15" y2="15" />
+                </svg>
+              </div>
+              <h1 className="text-2xl font-semibold text-red-600 dark:text-red-400">
+                Deployment Failed
+              </h1>
+            </div>
+
+            {deployError && (
+              <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 mb-6">
+                <p className="text-[15px] text-red-600 dark:text-red-400 font-mono">{deployError}</p>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button onClick={loadAnother} className="btn btn-secondary flex-1">
+                Start Over
+              </button>
+              <button onClick={startDeploy} className="btn btn-primary flex-1">
+                Retry
+              </button>
+            </div>
           </div>
         )}
       </div>
