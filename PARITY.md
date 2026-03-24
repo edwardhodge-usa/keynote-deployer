@@ -94,9 +94,20 @@ Swift: SwiftUI + SwiftData (macOS 15+, Swift 6.2)
 | Version display in sidebar | Done | Done | CFBundleShortVersionString in safeAreaInset footer |
 | Auto-updater | Done | Done | Sparkle 2.7 via SPM, UpdaterService, "Check for Updates" menu item |
 
+## GIF Deploy
+
+| Feature | Primary | Swift | Notes |
+|---|---|---|---|
+| GIF slide viewer (local preview) | Done | N/A | gifuct-js parser + quiet-run slide detection |
+| GIF parsing + slide detection | Done | N/A | ~1000 point pixel-diff sampling, quiet-run algorithm |
+| GIF deploy to Vercel | Done | N/A | Generates standalone HTML viewer + deploys GIF |
+| GIF deploy confirm phase (project name, secure embed) | Done | N/A | Mirrors HTML deploy confirm flow |
+| GIF deploy progress tracking | Done | N/A | 4-step progress via processing-progress channel |
+| GIF deploy complete (URL copy, Framer embed, open) | Done | N/A | Same UX as HTML deploy complete phase |
+
 ## Summary
 
-- **Total features:** 47 (2 marked N/A = 45 applicable)
-- **Done:** 45
+- **Total features:** 53 (8 marked N/A = 45 applicable)
+- **Done:** 51
 - **TODO:** 0
-- **Parity:** 100% (45/45 applicable features)
+- **Parity:** 100% (45/45 applicable features for original feature set; GIF Deploy is Electron-only)

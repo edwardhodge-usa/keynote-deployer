@@ -60,10 +60,17 @@ The core workflow runs as a single `process-and-deploy` IPC call that pushes pro
 4. **Step 15**: `runtimeVerifier.ts` — Puppeteer browser check (optional, controlled by settings)
 5. **Step 16**: Complete — save to history, auto-copy URL if enabled
 
+### GIF Deploy Pipeline (4 steps)
+Alternative deployment path for Keynote-exported GIFs instead of HTML exports:
+1. **Step 1**: `gifViewerGenerator.ts` — generates self-contained HTML viewer page, copies GIF to temp deploy folder
+2. **Steps 2-3**: Reuses `vercelDeployer.ts` — same REST API project creation + CLI deployment
+3. **Step 4**: Complete — save to history, auto-copy URL
+The deployed viewer auto-loads the GIF, parses slides client-side, and provides forward/back/dots/keyboard navigation.
+
 ### IPC Architecture (Electron)
 All IPC uses `ipcMain.handle`/`ipcRenderer.invoke` with a typed `IpcResponse<T>` wrapper (`{ success, data?, error? }`).
 
-**Invoke channels (renderer → main):** `select-folder`, `validate-keynote-folder`, `process-and-deploy`, `load-settings`, `save-settings`, `detect-vercel-token`, `load-history`, `remove-history-entry`, `fetch-vercel-projects`, `delete-vercel-project`, `get-app-version`, `open-url`, `copy-to-clipboard`, `get-system-theme`
+**Invoke channels (renderer → main):** `select-folder`, `validate-keynote-folder`, `process-and-deploy`, `deploy-gif`, `load-settings`, `save-settings`, `detect-vercel-token`, `load-history`, `remove-history-entry`, `fetch-vercel-projects`, `delete-vercel-project`, `get-app-version`, `open-url`, `copy-to-clipboard`, `get-system-theme`
 
 **Push channels (main → renderer):** `processing-progress` (step-by-step pipeline updates), `theme-changed` (system theme), `navigate` (menu bar Cmd+N / Cmd+,)
 
