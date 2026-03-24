@@ -44,10 +44,20 @@ function SettingsIcon({ className }: { className?: string }) {
   )
 }
 
+function PreviewIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="14" height="12" rx="2" />
+      <polygon points="7.5,7 7.5,13 12.5,10" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
 const tabs: { id: TabId; label: string; Icon: React.FC<{ className?: string }> }[] = [
   { id: 'deploy', label: 'Deploy', Icon: DeployIcon },
   { id: 'projects', label: 'Projects', Icon: ProjectsIcon },
   { id: 'history', label: 'History', Icon: HistoryIcon },
+  { id: 'preview', label: 'Preview', Icon: PreviewIcon },
   { id: 'settings', label: 'Settings', Icon: SettingsIcon },
 ]
 
