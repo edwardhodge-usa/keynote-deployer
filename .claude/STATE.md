@@ -1,28 +1,27 @@
 # Session State
 
-**Last updated:** 2026-03-21 19:20
-**Goal:** Swift parallel build — scaffold → 100% parity → release → notarize
-**Plan:** None
+**Last updated:** 2026-03-24 16:10
+**Goal:** Add GIF deployment pipeline — Preview tab with local viewer + deploy-to-Vercel flow
+**Plan:** .claude/PLAN.md (all tasks complete)
 
 ## Current Task
-**What:** Full Swift build + distribution pipeline + notarization
-**Status:** Completed — v1.0.2-swift notarized and published
+**What:** GIF Deploy Pipeline — full implementation + release
+**Status:** Completed — v1.0.3 released to GitHub
 
 ## Context (for next session)
-- Swift app at 45/45 applicable features (100% parity with Electron)
-- v1.0.2-swift: notarized (4f005bd8), stapled, universal binary, Sparkle EdDSA signed
-- Notarytool keychain profile "notarytool" configured and working
-- `/notarize` skill tested end-to-end — full pipeline automated
-- `ils-scope-budget` project initialized (separate repo, stack-agnostic)
-- AI Assistant (imaginelab-ai-assistant) is the master orchestrator connecting all projects
+- GIF viewer uses gifuct-js (npm) for parsing, quiet-run algorithm for slide detection
+- Deploy generates HTML viewer via `electron/gifViewerGenerator.ts` + copies GIF to temp folder → Vercel
+- `webUtils.getPathForFile(file)` is required for native file paths in Electron 33 (lesson in CLAUDE.md)
+- PARITY.md updated: 51/51 applicable features (6 new GIF features, all N/A for Swift)
+- Future: app-side Airtable integration to wire deck URLs to client portal without Claude Code middleware
 
 ## Next Step
-App is fully distribution-ready. Next work is either feature development on the Swift app, or pivoting to the AI Assistant / Scope & Budget workstream.
+No immediate next step. App is feature-complete for both HTML and GIF deployment paths. Next logical work is either Swift parity for the GIF features, or the Airtable integration documented in vault `apps/keynote-deployer.md`.
 
 ## Verification Goals
-- [x] Swift build compiles clean (Debug + Release)
-- [x] All 45 applicable features implemented (PARITY.md)
-- [x] Developer ID signed with hardened runtime
-- [x] Sparkle integrated with EdDSA key
-- [x] GitHub Release published with DMG + appcast.xml
-- [x] Notarization accepted by Apple
+- [x] Dropping a GIF and clicking Deploy produces a Vercel URL
+- [x] The deployed URL loads an interactive slide viewer
+- [x] History tab shows GIF deployments alongside HTML deployments
+- [x] Copy URL and Copy Framer Embed work
+- [x] `npx vite build` exits cleanly
+- [x] v1.0.3 released to GitHub

@@ -25,6 +25,7 @@ Update this file after every correction.
 **2026-03-21** - `npx electron-builder` without `npx vite build` first → "dist-electron/main.js does not exist". Must run Vite build before electron-builder since `rm -rf dist dist-electron` cleans both
 **2026-03-21** - FileManager.copyItem throws if destination exists → removeItem before copyItem when restoring from backup
 **2026-03-21** - Process pipe deadlock: waitUntilExit before readDataToEndOfFile hangs if pipe buffer fills → drain pipes on background threads first, then waitUntilExit
+**2026-03-24** - `(file as any).path` returns empty string in Electron 33 renderer → use `webUtils.getPathForFile(file)` from preload bridge. Import `webUtils` from `electron` in preload.ts
 
 ## Commands
 
