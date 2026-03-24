@@ -1,10 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings, ProcessRequest, IpcResponse, FolderValidation, TokenDetection, HistoryEntry, ProcessingProgress, ThemeState, VercelProjectExtended } from '../src/types/index'
+import type { AppSettings, ProcessRequest, GifDeployRequest, IpcResponse, FolderValidation, TokenDetection, HistoryEntry, ProcessingProgress, ThemeState, VercelProjectExtended } from '../src/types/index'
 
 export interface ElectronAPI {
   selectFolder: () => Promise<IpcResponse<string>>
   validateKeynoteFolder: (folderPath: string) => Promise<IpcResponse<FolderValidation>>
   processAndDeploy: (request: ProcessRequest) => Promise<IpcResponse<import('../src/types/index').PipelineResult>>
+  deployGif: (request: GifDeployRequest) => Promise<IpcResponse<import('../src/types/index').PipelineResult>>
   loadSettings: () => Promise<IpcResponse<AppSettings>>
   saveSettings: (settings: Partial<AppSettings>) => Promise<IpcResponse<void>>
   detectVercelToken: () => Promise<IpcResponse<TokenDetection>>
@@ -30,6 +31,9 @@ const electronAPI: ElectronAPI = {
 
   processAndDeploy: (request: ProcessRequest) =>
     ipcRenderer.invoke('process-and-deploy', request),
+
+  deployGif: (request: GifDeployRequest) =>
+    ipcRenderer.invoke('deploy-gif', request),
 
   loadSettings: () => ipcRenderer.invoke('load-settings'),
 

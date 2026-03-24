@@ -49,6 +49,15 @@ export interface ProcessRequest {
   secureEmbed?: boolean
 }
 
+// GIF deployment request
+export interface GifDeployRequest {
+  gifPath: string
+  projectName: string
+  slideCount: number
+  title: string
+  secureEmbed: boolean
+}
+
 // Full pipeline result
 export interface PipelineResult {
   success: boolean
