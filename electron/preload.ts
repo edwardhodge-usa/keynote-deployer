@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { AppSettings, ProcessRequest, GifDeployRequest, IpcResponse, FolderValidation, TokenDetection, HistoryEntry, ProcessingProgress, ThemeState, VercelProjectExtended } from '../src/types/index'
 
 export interface ElectronAPI {
@@ -20,6 +20,7 @@ export interface ElectronAPI {
   onProcessingProgress: (callback: (progress: ProcessingProgress) => void) => void
   onThemeChanged: (callback: (theme: ThemeState) => void) => void
   onNavigate: (callback: (tab: string) => void) => void
+  getFilePath: (file: File) => string
   removeAllListeners: (channel: string) => void
 }
 
@@ -69,6 +70,8 @@ const electronAPI: ElectronAPI = {
   onNavigate: (callback: (tab: string) => void) => {
     ipcRenderer.on('navigate', (_event, tab) => callback(tab))
   },
+
+  getFilePath: (file: File) => webUtils.getPathForFile(file),
 
   removeAllListeners: (channel: string) => {
     ipcRenderer.removeAllListeners(channel)

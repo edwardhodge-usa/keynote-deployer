@@ -105,7 +105,7 @@ export default function GifViewer() {
     setDragOver(false)
     const file = e.dataTransfer.files[0]
     if (file) {
-      setGifFilePath((file as any).path || '')
+      setGifFilePath(window.electron.getFilePath(file))
       setGifFileSize(file.size)
       handleFile(file)
     }
@@ -502,7 +502,7 @@ export default function GifViewer() {
               onChange={(e) => {
                 const file = e.target.files?.[0]
                 if (file) {
-                  setGifFilePath((file as any).path || '')
+                  setGifFilePath(window.electron.getFilePath(file))
                   setGifFileSize(file.size)
                   handleFile(file)
                 }
