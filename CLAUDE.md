@@ -1,4 +1,6 @@
-# Keynote Deployer
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 <!--
 Project-specific CLAUDE.md. See ~/CLAUDE.md for global preferences.
@@ -7,8 +9,8 @@ Update this file after every correction.
 
 ## Quick Context
 **What**: One-click GUI app that processes Keynote HTML exports (applies 7 HiDPI rendering fixes) and deploys them to Vercel. Replaces a 12-step manual process with drag-and-drop.
-**Stack**: Electron 33 + React 18 + TypeScript 5.7 + Vite 6 + Tailwind 3 + Vercel REST API + CLI
-**Status**: Active -- core workflow complete, deployment and processing functional
+**Dual stack**: Electron 33 + React 18 + TypeScript 5.7 + Vite 6 + Tailwind 3 (primary) | Swift 6.2 + SwiftUI + SwiftData macOS 15+ (parallel build, 100% parity)
+**Status**: Both apps at feature parity (45/45). Swift v1.0.2 released — Developer ID signed, notarized, Sparkle auto-updater integrated.
 
 ## Lessons Learned
 <!-- Add project-specific mistakes/solutions here -->
@@ -24,41 +26,73 @@ Update this file after every correction.
 **2026-03-21** - FileManager.copyItem throws if destination exists → removeItem before copyItem when restoring from backup
 **2026-03-21** - Process pipe deadlock: waitUntilExit before readDataToEndOfFile hangs if pipe buffer fills → drain pipes on background threads first, then waitUntilExit
 
-## Key Commands
+## Commands
+
+### Electron
 ```bash
-npm run electron:dev     # Start development (Vite + Electron)
-npm run electron:build   # Build for production
+npm run electron:dev        # Start development (Vite + Electron)
+npm run electron:build      # Build for production (vite build + electron-builder)
+npm run type-check          # TypeScript type checking (tsc --noEmit)
+
+# Production build MUST output outside iCloud (resource forks break codesign):
+rm -rf dist dist-electron && npx vite build && npx electron-builder --config.directories.output=/tmp/keynote-deployer-release
 ```
 
-## Important Files
-| File | Purpose |
-|------|---------|
-| `electron/main.ts` | BrowserWindow + IPC handlers |
-| `electron/preload.ts` | Context bridge API |
-| `electron/keynoteProcessor.ts` | 7 HiDPI fixes + custom index.html generation |
-| `electron/vercelDeployer.ts` | Vercel REST API + CLI deployment |
-| `electron/fileOperations.ts` | Settings persistence, history, file validation |
-| `electron/runtimeVerifier.ts` | Runtime verification logic |
-| `src/components/Deploy.tsx` | 4-phase deployment workflow UI |
-| `src/components/DeployProgress.tsx` | 14-step progress indicator |
-| `src/components/History.tsx` | Past deployments list |
-| `src/components/Settings.tsx` | Vercel token + team ID config |
+### Swift
+```bash
+cd swift-app && xcodegen generate && xcodebuild build -scheme KeynoteDeployer -destination "platform=macOS" -quiet
 
-## The 7 HiDPI Fixes (in keynoteProcessor.ts)
-1. zC scale -- PDF rasterization at 3x instead of 1x
-2. Fullscreen bypass -- enable rendering without fullscreen mode
-3. Viewport A -- DPR scaling for sparkle/particle effects
-4. Viewport B -- DPR scaling for firework effects
-5. Resize viewport -- DPR scaling in resize handler
-6. Constructor viewport -- divide viewportWidth/Height by DPR
-7. Canvas DPR -- scale canvas backing store + add CSS size
+# Release archive (universal binary, Developer ID signed):
+cd swift-app && xcodebuild archive -scheme KeynoteDeployer -archivePath /tmp/KeynoteDeployer.xcarchive -destination "generic/platform=macOS"
 
-## Key Architecture Notes
-- Settings stored in ~/Library/Application Support/keynote-deployer/
-- Vercel token auto-detected from CLI config if available
-- Default team: team_E1wAzl9zyAPrlGzyjmcXNuxd
-- macOS native feel: hidden inset title bar, SF Pro fonts, dark mode
-- Generated index.html includes loading overlay, nav controls, slide counter
+# Notarize (requires keychain profile "notarytool" configured):
+xcrun notarytool submit /path/to/KeynoteDeployer.dmg --keychain-profile "notarytool" --wait
+xcrun stapler staple /path/to/KeynoteDeployer.dmg
+```
+
+## Architecture
+
+### Deploy Pipeline (16 steps)
+The core workflow runs as a single `process-and-deploy` IPC call that pushes progress events:
+1. **Steps 1-11**: `keynoteProcessor.ts` — backup main.js, apply 7 HiDPI regex fixes, generate index.html wrapper
+2. **Steps 12-13**: `vercelDeployer.ts` — REST API project creation/lookup, CLI deployment (`vercel --prod`)
+3. **Step 14**: `verifier.ts` — fetch deployed main.js + index.html, verify all 7 fix patterns present
+4. **Step 15**: `runtimeVerifier.ts` — Puppeteer browser check (optional, controlled by settings)
+5. **Step 16**: Complete — save to history, auto-copy URL if enabled
+
+### IPC Architecture (Electron)
+All IPC uses `ipcMain.handle`/`ipcRenderer.invoke` with a typed `IpcResponse<T>` wrapper (`{ success, data?, error? }`).
+
+**Invoke channels (renderer → main):** `select-folder`, `validate-keynote-folder`, `process-and-deploy`, `load-settings`, `save-settings`, `detect-vercel-token`, `load-history`, `remove-history-entry`, `fetch-vercel-projects`, `delete-vercel-project`, `get-app-version`, `open-url`, `copy-to-clipboard`, `get-system-theme`
+
+**Push channels (main → renderer):** `processing-progress` (step-by-step pipeline updates), `theme-changed` (system theme), `navigate` (menu bar Cmd+N / Cmd+,)
+
+The preload bridge (`electron/preload.ts`) and type declarations (`src/electron.d.ts`) must stay in sync — both define the `ElectronAPI` interface.
+
+### Vite Configuration
+- Path aliases: `@` → `src/`, `@components` → `src/components/`, `@types` → `src/types/`
+- Externalized modules: `puppeteer`, `bufferutil`, `utf-8-validate` (native, can't bundle)
+- Dev server port: 5173, dev mode detected via `process.env.VITE_DEV_SERVER_URL`
+
+### Deploy View Phases (renderer)
+`Deploy.tsx` manages 4 UI phases: **Select** (drop zone + file picker) → **Confirm** (metadata preview, project name, secure embed toggle) → **Processing** (16-step progress via push events) → **Complete** (URL copy, Framer embed copy, open in browser). Error state shows progress + retry.
+
+### Shared Data
+- Settings: `~/Library/Application Support/keynote-deployer/settings.json` (shared by both apps)
+- History: Electron uses `history.json` in same dir, Swift uses SwiftData
+- `schema/` directory contains JSON schemas for all shared types (AppSettings, HistoryEntry, KeynoteMetadata, etc.)
+- Vercel token auto-detected from `~/.local/share/com.vercel.cli/auth.json` or `~/Library/Application Support/com.vercel.cli/auth.json`
+- Default Vercel team: `team_E1wAzl9zyAPrlGzyjmcXNuxd`
+
+### The 7 HiDPI Fixes
+Applied via regex to Keynote's exported `main.js`. All fixes are idempotent — re-processing is safe.
+1. zC scale — PDF rasterization at 3x instead of 1x
+2. Fullscreen bypass — enable rendering without fullscreen mode
+3. Viewport A — DPR scaling for sparkle/particle effects
+4. Viewport B — DPR scaling for firework effects
+5. Resize viewport — DPR scaling in resize handler
+6. Constructor viewport — divide viewportWidth/Height by DPR
+7. Canvas DPR — scale canvas backing store + add CSS size
 
 ## Parallel Build Architecture
 
@@ -74,7 +108,7 @@ npm run electron:build   # Build for production
 | Electron `dialog.showOpenDialog` | `NSOpenPanel` |
 | `clipboard.writeText` | `NSPasteboard.general.setString` |
 | Tailwind CSS classes | SwiftUI native modifiers + system colors |
-| `electron-updater` | Sparkle (future) |
+| `electron-updater` | Sparkle 2.7 (SPM, EdDSA signing) |
 
 ### Translation Rules
 - **Views:** One SwiftUI view per React component. Use `NavigationSplitView` for sidebar layout.
@@ -89,11 +123,20 @@ npm run electron:build   # Build for production
 - Both apps use the same Vercel team, token, and project naming convention.
 - Both generate identical `index.html` output (IndexHtmlGenerator mirrors keynoteProcessor.ts exactly).
 
+### Swift Signing & Distribution
+- **Debug:** `CODE_SIGN_STYLE: Automatic`, `Apple Development` identity
+- **Release:** `CODE_SIGN_STYLE: Manual`, `Developer ID Application: Imaginelab Studios (8RHA62T6FQ)`, hardened runtime enabled
+- **Entitlements:** `com.apple.security.network.client` (required for Vercel API/CLI)
+- **Sparkle config:** EdDSA key + feed URL via gitignored `Sparkle.xcconfig` (referenced in `project.yml` configFiles)
+- **Notarization:** Keychain profile `notarytool` configured, must re-sign Sparkle nested binaries with `--options runtime --timestamp`
+
 ### Known Issues the Swift Build Must Respect
 - Vercel truncates long subdomains → always resolve via `targets.production.alias` API
 - Filter projects list by cross-referencing with local deployment history
 - All 7 HiDPI fixes are idempotent → safe to re-process
 - Build output must be outside iCloud Drive (use `/tmp/`)
+- `FileManager.copyItem` throws if destination exists → `removeItem` before `copyItem` when restoring backups
+- `Process` pipe deadlock: drain pipes on background threads first, then `waitUntilExit`
 
 ### Decision Protocol
 STOP and report blockers, never silently work around them.
@@ -106,25 +149,13 @@ STOP and report blockers, never silently work around them.
 5. Update PARITY.md
 6. Commit with `/ship`
 
-### Swift Build Commands
-```bash
-cd swift-app && xcodegen generate && xcodebuild build -scheme KeynoteDeployer -destination "platform=macOS" -quiet
-```
-
-### Swift Important Files
-| File | Purpose |
-|---|---|
-| `swift-app/project.yml` | XcodeGen project definition |
-| `swift-app/Sources/App/KeynoteDeployerApp.swift` | App entry point + menu commands |
-| `swift-app/Sources/Services/KeynoteProcessor.swift` | 7 HiDPI fixes (actor) |
-| `swift-app/Sources/Services/IndexHtmlGenerator.swift` | index.html generation |
-| `swift-app/Sources/Services/VercelAPI.swift` | Vercel REST API client |
-| `swift-app/Sources/Services/VercelDeployer.swift` | Vercel CLI deployment |
-| `swift-app/Sources/Services/FileOperations.swift` | Settings, validation, token detection |
-| `swift-app/Sources/Views/DeployView.swift` | 4-phase deploy workflow |
-| `swift-app/Sources/Views/ProjectsView.swift` | Vercel projects list |
-| `swift-app/Sources/Views/HistoryView.swift` | SwiftData deployment history |
-| `swift-app/Sources/Views/SettingsView.swift` | Vercel config + preferences |
+### Swift Code Organization
+- `swift-app/Sources/App/` — entry point, `@main` app struct with menu commands
+- `swift-app/Sources/Models/` — Codable structs for API types, SwiftData `@Model` for HistoryEntry, NavigationTab enum
+- `swift-app/Sources/Services/` — `actor` for stateful (KeynoteProcessor), `enum` with static methods for stateless (FileOperations, IndexHtmlGenerator)
+- `swift-app/Sources/Views/` — one SwiftUI view per React component, `NavigationSplitView` sidebar layout
+- `swift-app/Sources/Config/` — AppConfig constants
+- Menu navigation uses `NotificationCenter` with `.navigateToTab` notification name (no IPC equivalent needed)
 
 ## Update Protocol
 When Claude makes a mistake: "Update CLAUDE.md so you don't make that mistake again."
