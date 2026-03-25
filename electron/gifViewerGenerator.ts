@@ -297,21 +297,28 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
         });
     })();
 
-    // ── GIF Parser + Slide Detection ──
+    // ── GIF Parser + Slide Detection (single-pass, one-frame-at-a-time) ──
     async function loadAndParseGIF(arrayBuffer) {
-      updateProgress('Parsing GIF structure...', 0);
+      updateProgress('Scanning frames...', 0);
       var gif = gifuct.parseGIF(arrayBuffer);
-      var rawFrames = gifuct.decompressFrames(gif, true);
 
-      if (!rawFrames || rawFrames.length === 0) {
+      // Filter to image frames only (each may also carry .gce data)
+      var imageFrames = gif.frames.filter(function(f) { return f.image; });
+      var gct = gif.gct;
+
+      if (!imageFrames || imageFrames.length === 0) {
         throw new Error('No image frames found in GIF.');
       }
 
       var gifWidth = gif.lsd.width;
       var gifHeight = gif.lsd.height;
-      var frameDelay = rawFrames[0] && rawFrames[0].delay ? rawFrames[0].delay : 40;
+      var totalFrames = imageFrames.length;
 
-      // Compositing canvas (handles disposal, positioning)
+      // Get frame delay from first frame
+      var firstDecoded = gifuct.decompressFrame(imageFrames[0], gct, true);
+      var frameDelay = (firstDecoded && firstDecoded.delay) ? firstDecoded.delay : 40;
+
+      // Compositing canvas
       var compCanvas = document.createElement('canvas');
       compCanvas.width = gifWidth;
       compCanvas.height = gifHeight;
@@ -321,80 +328,106 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
       var tempCanvas = document.createElement('canvas');
       var tempCtx = tempCanvas.getContext('2d');
 
-      // Sample points for diff detection (~1000 points on a grid)
-      var samplePoints = [];
-      var gridSize = Math.ceil(Math.sqrt(1000));
-      var stepX = Math.floor(gifWidth / gridSize);
-      var stepY = Math.floor(gifHeight / gridSize);
-      for (var y = 0; y < gifHeight; y += stepY) {
-        for (var x = 0; x < gifWidth; x += stepX) {
-          samplePoints.push(x, y);
-        }
-      }
-
-      var frames = [];
-      var diffs = [0];
-      var prevSamples = null;
-      var totalFrames = rawFrames.length;
-
-      for (var i = 0; i < totalFrames; i++) {
-        var frame = rawFrames[i];
-
-        // Handle disposal
-        if (frame.disposalType === 2) {
+      // Helper: composite a decoded frame onto compCanvas
+      function compositeDecoded(decoded) {
+        if (decoded.disposalType === 2) {
           compCtx.clearRect(0, 0, gifWidth, gifHeight);
         }
-
-        // Draw patch to temp canvas, composite onto full canvas
-        var dims = frame.dims;
+        var dims = decoded.dims;
         tempCanvas.width = dims.width;
         tempCanvas.height = dims.height;
-        var imageData = tempCtx.createImageData(dims.width, dims.height);
-        imageData.data.set(frame.patch);
-        tempCtx.putImageData(imageData, 0, 0);
+        var imgData = tempCtx.createImageData(dims.width, dims.height);
+        imgData.data.set(decoded.patch);
+        tempCtx.putImageData(imgData, 0, 0);
         compCtx.drawImage(tempCanvas, dims.left, dims.top);
+      }
 
-        // Sample pixels for diff detection
-        var fullImageData = compCtx.getImageData(0, 0, gifWidth, gifHeight);
-        var pixels = fullImageData.data;
+      // Scaled-down canvas for memory-efficient diff sampling (~2KB vs ~2.6MB per frame)
+      var sampleW = 32;
+      var sampleH = Math.max(1, Math.round(gifHeight / gifWidth * sampleW));
+      var sampleCanvas = document.createElement('canvas');
+      sampleCanvas.width = sampleW;
+      sampleCanvas.height = sampleH;
+      var sampleCtx = sampleCanvas.getContext('2d');
+      var samplePixelCount = sampleW * sampleH;
 
-        var currentSamples = new Uint8Array(samplePoints.length / 2 * 3);
-        for (var s = 0; s < samplePoints.length; s += 2) {
-          var idx = (samplePoints[s + 1] * gifWidth + samplePoints[s]) * 4;
-          var si = (s / 2) * 3;
-          currentSamples[si] = pixels[idx];
-          currentSamples[si + 1] = pixels[idx + 1];
-          currentSamples[si + 2] = pixels[idx + 2];
+      // ── Single pass: decompress one-at-a-time, diff, snapshot at slide boundaries ──
+      var diffs = [];
+      var prevSamples = null;
+      var prevDiff = Infinity;
+      var slideSnapshots = {}; // frameIndex → ImageData (keyed to quiet-run start)
+      var QUIET_THRESHOLD = 0.3;
+      var SNAPSHOT_SETTLE = 5;
+      var quietRunStart = null;
+
+      // Composite first frame (already decoded above)
+      compositeDecoded(firstDecoded);
+      firstDecoded = null; // free patch
+
+      // Sample first frame
+      sampleCtx.drawImage(compCanvas, 0, 0, sampleW, sampleH);
+      var sampleData = sampleCtx.getImageData(0, 0, sampleW, sampleH);
+      prevSamples = new Uint8Array(sampleData.data.length);
+      prevSamples.set(sampleData.data);
+      diffs.push(0);
+
+      // Snapshot first frame (always a potential slide start)
+      slideSnapshots[0] = compCtx.getImageData(0, 0, gifWidth, gifHeight);
+      quietRunStart = 0;
+      prevDiff = 0;
+
+      for (var i = 1; i < totalFrames; i++) {
+        var decoded = gifuct.decompressFrame(imageFrames[i], gct, true);
+        if (!decoded) { diffs.push(0); continue; }
+
+        compositeDecoded(decoded);
+        decoded = null; // free RGBA patch immediately
+
+        // Scaled diff sampling (~2KB allocation instead of ~2.6MB)
+        sampleCtx.drawImage(compCanvas, 0, 0, sampleW, sampleH);
+        sampleData = sampleCtx.getImageData(0, 0, sampleW, sampleH);
+        var currentSamples = sampleData.data;
+
+        var totalDiff = 0;
+        for (var s = 0; s < currentSamples.length; s += 4) {
+          totalDiff += Math.abs(currentSamples[s] - prevSamples[s]);
+          totalDiff += Math.abs(currentSamples[s + 1] - prevSamples[s + 1]);
+          totalDiff += Math.abs(currentSamples[s + 2] - prevSamples[s + 2]);
         }
+        var currentDiff = totalDiff / (samplePixelCount * 3);
+        diffs.push(currentDiff);
 
-        if (prevSamples) {
-          var totalDiff = 0;
-          for (var s = 0; s < currentSamples.length; s++) {
-            totalDiff += Math.abs(currentSamples[s] - prevSamples[s]);
+        prevSamples = new Uint8Array(currentSamples.length);
+        prevSamples.set(currentSamples);
+
+        // Track quiet runs and save snapshot after settling period
+        if (currentDiff <= QUIET_THRESHOLD) {
+          if (quietRunStart === null) quietRunStart = i;
+          if (i === quietRunStart + SNAPSHOT_SETTLE) {
+            slideSnapshots[quietRunStart] = compCtx.getImageData(0, 0, gifWidth, gifHeight);
           }
-          diffs.push(totalDiff / currentSamples.length);
+        } else {
+          if (quietRunStart !== null && !slideSnapshots[quietRunStart]) {
+            slideSnapshots[quietRunStart] = compCtx.getImageData(0, 0, gifWidth, gifHeight);
+          }
+          quietRunStart = null;
         }
-        prevSamples = currentSamples;
 
-        // Convert to ImageBitmap
-        var bitmap = await createImageBitmap(compCanvas);
-        frames.push(bitmap);
+        prevDiff = currentDiff;
 
-        // Free raw patch data
-        frame.patch = null;
-
-        // Progress update every 20 frames
         if (i % 20 === 0) {
-          updateProgress('Parsing frame ' + (i + 1) + ' of ' + totalFrames + '...', Math.round((i / totalFrames) * 100));
+          updateProgress('Scanning frame ' + (i + 1) + ' of ' + totalFrames + '...', Math.round((i / totalFrames) * 100));
           await new Promise(function(r) { setTimeout(r, 0); });
         }
       }
 
-      // Slide detection: find "quiet runs" — sequences of consecutive frames
-      // where diff is near zero. These are the actual slide holds.
-      var QUIET_THRESHOLD = 0.3;
-      var MIN_QUIET_RUN = 8;
+      // Handle last quiet run if GIF ends in one
+      if (quietRunStart !== null && !slideSnapshots[quietRunStart]) {
+        slideSnapshots[quietRunStart] = compCtx.getImageData(0, 0, gifWidth, gifHeight);
+      }
 
+      // ── Slide detection ──
+      var MIN_QUIET_RUN = 8;
       var quietRuns = [];
       var runStart = null;
       for (var i = 0; i < diffs.length; i++) {
@@ -411,7 +444,6 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
         quietRuns.push({ start: runStart, end: diffs.length - 1 });
       }
 
-      // Build slide map from quiet runs
       var slides = [];
       for (var i = 0; i < quietRuns.length; i++) {
         var run = quietRuns[i];
@@ -426,23 +458,41 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
         });
       }
 
-      // Fallback: if no slides found, treat entire GIF as one slide
       if (slides.length === 0) {
-        slides.push({
-          restFrame: 0,
-          holdStart: 0,
-          holdEnd: frames.length - 1,
-          transitionFrames: null
-        });
+        slides.push({ restFrame: 0, holdStart: 0, holdEnd: 0, transitionFrames: null });
       }
 
       if (slides.length < 2) {
         showWarning('Could not detect slide boundaries. Try re-exporting with longer auto-advance timing (1-2 seconds).');
       }
 
-      console.log('Detected ' + slides.length + ' slides from ' + frames.length + ' frames');
+      // Map slides to snapshots (snapshots were saved at quiet-run starts)
+      var slideFrames = {};
+      for (var i = 0; i < slides.length; i++) {
+        var rf = slides[i].restFrame;
+        if (slideSnapshots[rf]) {
+          slideFrames[rf] = slideSnapshots[rf];
+        }
+      }
 
-      return { frames: frames, slides: slides, width: gifWidth, height: gifHeight, frameDelay: frameDelay };
+      // Free unused snapshots (quiet runs that were too short to be slides)
+      slideSnapshots = null;
+
+      console.log('Detected ' + slides.length + ' slides from ' + totalFrames + ' frames (' + Object.keys(slideFrames).length + ' slide snapshots, lazy transition decode)');
+
+      return {
+        slideFrames: slideFrames,
+        slides: slides,
+        width: gifWidth,
+        height: gifHeight,
+        frameDelay: frameDelay,
+        // For lazy transition playback (re-decompress on demand):
+        imageFrames: imageFrames,
+        gct: gct,
+        compositeDecoded: compositeDecoded,
+        compCanvas: compCanvas,
+        compCtx: compCtx
+      };
     }
 
     // ── Viewer ──
@@ -482,8 +532,10 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
       var canvas = document.getElementById('slideCanvas');
       var ctx = canvas.getContext('2d');
       var slide = slideMap[index];
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(parsedData.frames[slide.restFrame], 0, 0);
+      var snapshot = parsedData.slideFrames[slide.restFrame];
+      if (snapshot) {
+        ctx.putImageData(snapshot, 0, 0);
+      }
       currentSlideIndex = index;
       updateControls();
     }
@@ -516,6 +568,13 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
       isPlaying = true;
       updateControls();
 
+      // Restore compCanvas to current slide's settled snapshot
+      var currentSlide = slideMap[currentSlideIndex];
+      var snapshot = parsedData.slideFrames[currentSlide.restFrame];
+      if (snapshot) {
+        parsedData.compCtx.putImageData(snapshot, 0, 0);
+      }
+
       var start = nextSlide.transitionFrames.start;
       var end = nextSlide.transitionFrames.end;
       var canvas = document.getElementById('slideCanvas');
@@ -523,8 +582,19 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
       var frameIdx = start;
 
       function playFrame() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(parsedData.frames[frameIdx], 0, 0);
+        try {
+          var decoded = gifuct.decompressFrame(parsedData.imageFrames[frameIdx], parsedData.gct, true);
+          if (decoded) {
+            parsedData.compositeDecoded(decoded);
+          }
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(parsedData.compCanvas, 0, 0);
+        } catch(e) {
+          console.error('Transition frame ' + frameIdx + ' error:', e);
+          isPlaying = false;
+          renderSlide(currentSlideIndex + 1);
+          return;
+        }
         frameIdx++;
 
         if (frameIdx <= end) {
@@ -556,6 +626,25 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
       if (e.key === 'ArrowRight') playNext();
       if (e.key === 'ArrowLeft') playPrev();
     });
+
+    // ── Touch swipe navigation ──
+    var touchStartX = 0;
+    var touchStartY = 0;
+    var SWIPE_THRESHOLD = 50;
+
+    document.addEventListener('touchstart', function(e) {
+      touchStartX = e.changedTouches[0].screenX;
+      touchStartY = e.changedTouches[0].screenY;
+    }, { passive: true });
+
+    document.addEventListener('touchend', function(e) {
+      var dx = e.changedTouches[0].screenX - touchStartX;
+      var dy = e.changedTouches[0].screenY - touchStartY;
+      if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        if (dx < 0) playNext();
+        else playPrev();
+      }
+    }, { passive: true });
   </script>
 
 </body>
