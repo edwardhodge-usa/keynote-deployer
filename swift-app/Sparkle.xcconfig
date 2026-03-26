@@ -1,0 +1,5 @@
+// Sparkle auto-updater configuration — GITIGNORED (contains real values)
+// Copy from Sparkle.xcconfig.example and fill in your values
+
+SPARKLE_FEED_URL = https://github.com/edwardhodge-usa/keynote-deployer/releases/latest/download/appcast.xml
+SPARKLE_ED_KEY = TEYI9o0zD1tc95dmkSIyvCN17FtqT0kXPo3F+pSHatw=
