@@ -160,7 +160,7 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
   }
 
   const framerEmbed = result?.url
-    ? `<iframe src="${result.url}" style="width:100%;height:100%;border:none" allowfullscreen></iframe>`
+    ? `<div style="position:relative;width:100%;aspect-ratio:16/9"><iframe src="${result.url}" style="position:absolute;inset:0;width:100%;height:100%;border:none" loading="lazy" allowfullscreen></iframe></div>`
     : ''
 
   return (

@@ -195,6 +195,15 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
       color: #ef4444;
     }
 
+    /* Iframe embed mode — hide chrome, maximize content */
+    @media all {
+      body.in-iframe header,
+      body.in-iframe .keyboard-hint,
+      body.in-iframe .powered-by { display: none !important; }
+      body.in-iframe #canvasContainer { margin-top: 8px; }
+      body.in-iframe #viewer { padding-bottom: 12px; }
+    }
+
     ${secureEmbedCss}
   </style>
 </head>
@@ -231,8 +240,9 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
     </div>
   </div>
 
-  <p style="text-align:center;font-size:11px;color:#555;margin-top:16px;">Powered by Keynote Deployer</p>
+  <p class="powered-by" style="text-align:center;font-size:11px;color:#555;margin-top:16px;">Powered by Keynote Deployer</p>
 
+  <script>if(window.self!==window.top)document.body.classList.add('in-iframe');</script>
   <script>${gifuctBundle}</script>
 
   <script>

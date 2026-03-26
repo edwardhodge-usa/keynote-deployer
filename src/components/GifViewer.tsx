@@ -706,7 +706,11 @@ export default function GifViewer() {
 
               <div className="flex gap-2">
                 <button
-                  onClick={() => copyText(`<iframe src="${deployResult.url}" style="width:100%;height:100%;border:none" allowfullscreen></iframe>`, 'embed')}
+                  onClick={() => {
+                    const w = parsedRef.current?.width || 1080
+                    const h = parsedRef.current?.height || 608
+                    copyText(`<div style="position:relative;width:100%;aspect-ratio:${w}/${h}"><iframe src="${deployResult.url}" style="position:absolute;inset:0;width:100%;height:100%;border:none" loading="lazy" allowfullscreen></iframe></div>`, 'embed')
+                  }}
                   className="btn btn-secondary btn-sm flex-1"
                 >
                   {copied === 'embed' ? 'Copied!' : 'Copy Framer Embed'}
