@@ -54,10 +54,10 @@ function PreviewIcon({ className }: { className?: string }) {
 }
 
 const tabs: { id: TabId; label: string; Icon: React.FC<{ className?: string }> }[] = [
-  { id: 'deploy', label: 'Deploy', Icon: DeployIcon },
+  { id: 'deploy', label: 'Deploy HTML', Icon: DeployIcon },
+  { id: 'preview', label: 'Deploy GIF', Icon: PreviewIcon },
   { id: 'projects', label: 'Projects', Icon: ProjectsIcon },
   { id: 'history', label: 'History', Icon: HistoryIcon },
-  { id: 'preview', label: 'Preview', Icon: PreviewIcon },
   { id: 'settings', label: 'Settings', Icon: SettingsIcon },
 ]
 
