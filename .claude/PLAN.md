@@ -7,7 +7,7 @@
 **Architecture:** The GIF viewer already parses slides and plays transitions locally. We add a confirm→deploy→complete flow on top: a new IPC handler (`deploy-gif`) writes a deploy folder to `/tmp/`, generates an `index.html` viewer (adapted from `gif-slide-viewer.html`) that loads the GIF via `fetch`, copies the GIF into the folder, calls the existing `deployToVercel()` function, saves to history, and returns the URL. The renderer-side GifViewer component gains confirm/deploying/complete/error phases.
 
 ## Verification Goals
-- [ ] Dropping a GIF and clicking Deploy produces a Vercel URL
+- [x] Dropping a GIF and clicking Deploy produces a Vercel URL
 - [ ] The deployed URL loads an interactive slide viewer with forward/back/dots/keyboard
 - [ ] The deployed viewer auto-detects slides from the GIF (no server-side processing)
 - [ ] History tab shows GIF deployments alongside HTML deployments
