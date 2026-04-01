@@ -29,6 +29,7 @@ Update this file after every correction.
 **2026-03-25** - `decompressFrames(gif, true)` decodes ALL frames into RGBA at once (~2.5GB for 963 frames) → crashes iPhone Safari. Use per-frame `decompressFrame()` with immediate patch release (peak ~5MB)
 **2026-03-25** - `getImageData(0, 0, fullWidth, fullHeight)` per frame in a tight loop creates ~2.6MB temporary allocations that overwhelm mobile GC → use scaled-down 32×18 sample canvas for diff detection (~2KB per frame)
 **2026-03-25** - `Sparkle.xcconfig` only contains public values (feed URL + EdDSA public key) → safe to commit. Gitignoring it breaks Xcode Cloud archives
+**2026-03-31** - GIF quiet-run MIN_QUIET_RUN=8 catches transition dark pauses as false slides → adaptive median filtering (discard runs < 0.5x median) eliminates them. Canonical algorithm in `src/utils/slideDetection.ts`
 
 ## Commands
 
