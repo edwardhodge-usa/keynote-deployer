@@ -438,20 +438,30 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
 
       // ── Slide detection ──
       var MIN_QUIET_RUN = 8;
-      var quietRuns = [];
+      var allQuietRuns = [];
       var runStart = null;
       for (var i = 0; i < diffs.length; i++) {
         if (diffs[i] <= QUIET_THRESHOLD) {
           if (runStart === null) runStart = i;
         } else {
           if (runStart !== null && (i - runStart) >= MIN_QUIET_RUN) {
-            quietRuns.push({ start: runStart, end: i - 1 });
+            allQuietRuns.push({ start: runStart, end: i - 1, length: i - runStart });
           }
           runStart = null;
         }
       }
       if (runStart !== null && (diffs.length - runStart) >= MIN_QUIET_RUN) {
-        quietRuns.push({ start: runStart, end: diffs.length - 1 });
+        allQuietRuns.push({ start: runStart, end: diffs.length - 1, length: diffs.length - runStart });
+      }
+
+      // Adaptive filtering: remove transition artifact "dark pauses" that
+      // barely meet the minimum but are much shorter than real slide holds.
+      var quietRuns = allQuietRuns;
+      if (allQuietRuns.length >= 3) {
+        var lengths = allQuietRuns.map(function(r) { return r.length; }).sort(function(a, b) { return a - b; });
+        var median = lengths[Math.floor(lengths.length / 2)];
+        var adaptiveMin = Math.max(MIN_QUIET_RUN, Math.floor(median * 0.5));
+        quietRuns = allQuietRuns.filter(function(r) { return r.length >= adaptiveMin; });
       }
 
       var slides = [];

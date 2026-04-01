@@ -519,21 +519,31 @@
       const MIN_QUIET_RUN = 8;     // minimum frames for a valid slide hold (~0.3 sec)
 
       // Find all quiet runs
-      const quietRuns = [];
+      const allQuietRuns = [];
       let runStart = null;
       for (let i = 0; i < diffs.length; i++) {
         if (diffs[i] <= QUIET_THRESHOLD) {
           if (runStart === null) runStart = i;
         } else {
           if (runStart !== null && (i - runStart) >= MIN_QUIET_RUN) {
-            quietRuns.push({ start: runStart, end: i - 1 });
+            allQuietRuns.push({ start: runStart, end: i - 1, length: i - runStart });
           }
           runStart = null;
         }
       }
       // Close final run
       if (runStart !== null && (diffs.length - runStart) >= MIN_QUIET_RUN) {
-        quietRuns.push({ start: runStart, end: diffs.length - 1 });
+        allQuietRuns.push({ start: runStart, end: diffs.length - 1, length: diffs.length - runStart });
+      }
+
+      // Adaptive filtering: remove transition artifact "dark pauses" that
+      // barely meet the minimum but are much shorter than real slide holds.
+      let quietRuns = allQuietRuns;
+      if (allQuietRuns.length >= 3) {
+        const lengths = allQuietRuns.map(r => r.length).sort((a, b) => a - b);
+        const median = lengths[Math.floor(lengths.length / 2)];
+        const adaptiveMin = Math.max(MIN_QUIET_RUN, Math.floor(median * 0.5));
+        quietRuns = allQuietRuns.filter(r => r.length >= adaptiveMin);
       }
 
       // Build slide map from quiet runs
@@ -543,7 +553,7 @@
         const run = quietRuns[i];
         const prevRun = i > 0 ? quietRuns[i - 1] : null;
         slides.push({
-          restFrame: run.start,
+          restFrame: Math.floor((run.start + run.end) / 2),
           holdStart: run.start,
           holdEnd: run.end,
           transitionFrames: prevRun
