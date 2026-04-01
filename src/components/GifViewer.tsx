@@ -1,14 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { parseGIF, decompressFrames } from 'gifuct-js'
+import { detectSlides, type DetectedSlide } from '../utils/slideDetection'
 
 // ── Types ──
 
-interface SlideInfo {
-  restFrame: number
-  holdStart: number
-  holdEnd: number
-  transitionFrames: { start: number; end: number } | null
-}
+type SlideInfo = DetectedSlide
 
 interface ParsedGif {
   frames: ImageBitmap[]
@@ -213,50 +209,8 @@ export default function GifViewer() {
         }
       }
 
-      // Quiet-run slide detection algorithm
-      const QUIET_THRESHOLD = 0.3
-      const MIN_QUIET_RUN = 8
-
-      const allQuietRuns: { start: number; end: number; length: number }[] = []
-      let runStart: number | null = null
-      for (let i = 0; i < diffs.length; i++) {
-        if (diffs[i] <= QUIET_THRESHOLD) {
-          if (runStart === null) runStart = i
-        } else {
-          if (runStart !== null && i - runStart >= MIN_QUIET_RUN) {
-            allQuietRuns.push({ start: runStart, end: i - 1, length: i - runStart })
-          }
-          runStart = null
-        }
-      }
-      if (runStart !== null && diffs.length - runStart >= MIN_QUIET_RUN) {
-        allQuietRuns.push({ start: runStart, end: diffs.length - 1, length: diffs.length - runStart })
-      }
-
-      // Adaptive filtering: remove transition artifact "dark pauses" that
-      // barely meet the minimum but are much shorter than real slide holds.
-      // Real slides are held 1-3+ seconds; transition pauses are sub-second.
-      let quietRuns = allQuietRuns
-      if (allQuietRuns.length >= 3) {
-        const lengths = allQuietRuns.map((r) => r.length).sort((a, b) => a - b)
-        const median = lengths[Math.floor(lengths.length / 2)]
-        const adaptiveMin = Math.max(MIN_QUIET_RUN, Math.floor(median * 0.5))
-        quietRuns = allQuietRuns.filter((r) => r.length >= adaptiveMin)
-      }
-
-      const detectedSlides: SlideInfo[] = []
-      for (let i = 0; i < quietRuns.length; i++) {
-        const run = quietRuns[i]
-        const prevRun = i > 0 ? quietRuns[i - 1] : null
-        // Use middle of quiet run as display frame (most settled, avoids transition edges)
-        const midFrame = Math.floor((run.start + run.end) / 2)
-        detectedSlides.push({
-          restFrame: midFrame,
-          holdStart: run.start,
-          holdEnd: run.end,
-          transitionFrames: prevRun ? { start: prevRun.end + 1, end: run.start - 1 } : null,
-        })
-      }
+      // Slide detection (canonical algorithm in src/utils/slideDetection.ts)
+      const detectedSlides = detectSlides(diffs)
 
       if (detectedSlides.length === 0) {
         detectedSlides.push({

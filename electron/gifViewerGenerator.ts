@@ -436,7 +436,7 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
         slideSnapshots[quietRunStart] = compCtx.getImageData(0, 0, gifWidth, gifHeight);
       }
 
-      // ── Slide detection ──
+      // ── Slide detection (ES5 copy of src/utils/slideDetection.ts — keep in sync) ──
       var MIN_QUIET_RUN = 8;
       var allQuietRuns = [];
       var runStart = null;
@@ -469,7 +469,8 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
         var run = quietRuns[i];
         var prevRun = i > 0 ? quietRuns[i - 1] : null;
         slides.push({
-          restFrame: run.start,
+          snapshotKey: run.start,
+          restFrame: Math.floor((run.start + run.end) / 2),
           holdStart: run.start,
           holdEnd: run.end,
           transitionFrames: prevRun
@@ -479,19 +480,19 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
       }
 
       if (slides.length === 0) {
-        slides.push({ restFrame: 0, holdStart: 0, holdEnd: 0, transitionFrames: null });
+        slides.push({ snapshotKey: 0, restFrame: 0, holdStart: 0, holdEnd: 0, transitionFrames: null });
       }
 
       if (slides.length < 2) {
         showWarning('Could not detect slide boundaries. Try re-exporting with longer auto-advance timing (1-2 seconds).');
       }
 
-      // Map slides to snapshots (snapshots were saved at quiet-run starts)
+      // Map slides to snapshots (snapshots were saved at quiet-run starts via snapshotKey)
       var slideFrames = {};
       for (var i = 0; i < slides.length; i++) {
-        var rf = slides[i].restFrame;
-        if (slideSnapshots[rf]) {
-          slideFrames[rf] = slideSnapshots[rf];
+        var sk = slides[i].snapshotKey;
+        if (slideSnapshots[sk]) {
+          slideFrames[sk] = slideSnapshots[sk];
         }
       }
 
@@ -552,7 +553,7 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
       var canvas = document.getElementById('slideCanvas');
       var ctx = canvas.getContext('2d');
       var slide = slideMap[index];
-      var snapshot = parsedData.slideFrames[slide.restFrame];
+      var snapshot = parsedData.slideFrames[slide.snapshotKey];
       if (snapshot) {
         ctx.putImageData(snapshot, 0, 0);
       }
@@ -590,7 +591,7 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
 
       // Restore compCanvas to current slide's settled snapshot
       var currentSlide = slideMap[currentSlideIndex];
-      var snapshot = parsedData.slideFrames[currentSlide.restFrame];
+      var snapshot = parsedData.slideFrames[currentSlide.snapshotKey];
       if (snapshot) {
         parsedData.compCtx.putImageData(snapshot, 0, 0);
       }

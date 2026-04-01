@@ -513,8 +513,8 @@
 
       // Slide detection: find "quiet runs" — sequences of consecutive frames
       // where diff is near zero. These are the actual slide holds.
+      // Slide detection (standalone copy of src/utils/slideDetection.ts — keep in sync)
       // Everything between quiet runs is a transition.
-      // This handles both gradual dissolves and hard cuts correctly.
       const QUIET_THRESHOLD = 0.3; // max diff to count as "quiet" (no change)
       const MIN_QUIET_RUN = 8;     // minimum frames for a valid slide hold (~0.3 sec)
 
