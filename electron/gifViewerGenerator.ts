@@ -364,7 +364,6 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
       // ── Single pass: decompress one-at-a-time, diff, snapshot at slide boundaries ──
       var diffs = [];
       var prevSamples = null;
-      var prevDiff = Infinity;
       var slideSnapshots = {}; // frameIndex → ImageData (keyed to quiet-run start)
       var QUIET_THRESHOLD = 0.3;
       var SNAPSHOT_SETTLE = 5;
@@ -384,8 +383,6 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
       // Snapshot first frame (always a potential slide start)
       slideSnapshots[0] = compCtx.getImageData(0, 0, gifWidth, gifHeight);
       quietRunStart = 0;
-      prevDiff = 0;
-
       for (var i = 1; i < totalFrames; i++) {
         var decoded = gifuct.decompressFrame(imageFrames[i], gct, true);
         if (!decoded) { diffs.push(0); continue; }
@@ -422,8 +419,6 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
           }
           quietRunStart = null;
         }
-
-        prevDiff = currentDiff;
 
         if (i % 20 === 0) {
           updateProgress('Scanning frame ' + (i + 1) + ' of ' + totalFrames + '...', Math.round((i / totalFrames) * 100));

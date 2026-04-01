@@ -22,9 +22,6 @@ export interface DetectedSlide {
 const QUIET_THRESHOLD = 0.3
 const MIN_QUIET_RUN = 8
 
-/**
- * Detect quiet runs — consecutive frames with diff <= threshold.
- */
 export function findQuietRuns(diffs: number[]): QuietRun[] {
   const runs: QuietRun[] = []
   let runStart: number | null = null
@@ -57,9 +54,6 @@ export function filterTransitionArtifacts(runs: QuietRun[]): QuietRun[] {
   return runs.filter((r) => r.length >= adaptiveMin)
 }
 
-/**
- * Build slide map from quiet runs. Uses mid-frame as display frame.
- */
 export function buildSlideMap(quietRuns: QuietRun[]): DetectedSlide[] {
   const slides: DetectedSlide[] = []
   for (let i = 0; i < quietRuns.length; i++) {
@@ -76,9 +70,6 @@ export function buildSlideMap(quietRuns: QuietRun[]): DetectedSlide[] {
   return slides
 }
 
-/**
- * Full pipeline: diffs → quiet runs → filter → slides.
- */
 export function detectSlides(diffs: number[]): DetectedSlide[] {
   const allRuns = findQuietRuns(diffs)
   const filteredRuns = filterTransitionArtifacts(allRuns)

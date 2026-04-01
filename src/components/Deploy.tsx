@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import DeployProgress from './DeployProgress'
 import type { KeynoteMetadata, ProcessingStep, ProcessingProgress, PipelineResult } from '../types'
+import { toKebabCase } from '../utils/strings'
 
 interface DeployProps {
   selectedProject?: string
@@ -32,15 +33,6 @@ const INITIAL_STEPS: ProcessingStep[] = Array.from({ length: 16 }, (_, i) => ({
   detail: '',
   status: 'pending' as const,
 }))
-
-function toKebabCase(str: string): string {
-  return str
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-}
 
 export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) {
   const [phase, setPhase] = useState<Phase>('select')

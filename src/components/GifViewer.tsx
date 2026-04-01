@@ -1,24 +1,19 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { parseGIF, decompressFrames } from 'gifuct-js'
 import { detectSlides, type DetectedSlide } from '../utils/slideDetection'
+import { toKebabCase } from '../utils/strings'
 
 // ── Types ──
 
-type SlideInfo = DetectedSlide
-
 interface ParsedGif {
   frames: ImageBitmap[]
-  slides: SlideInfo[]
+  slides: DetectedSlide[]
   width: number
   height: number
   frameDelay: number
 }
 
 type Phase = 'drop' | 'loading' | 'viewing' | 'confirm' | 'deploying' | 'complete' | 'error'
-
-function toKebabCase(str: string): string {
-  return str.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
-}
 
 export default function GifViewer() {
   const [phase, setPhase] = useState<Phase>('drop')
