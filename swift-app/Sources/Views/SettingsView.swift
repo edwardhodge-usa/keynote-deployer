@@ -5,9 +5,10 @@ struct SettingsView: View {
     @State private var isLoading = true
     @State private var showSavedBadge = false
     @State private var tokenStatus: TokenStatus = .unknown
+    @State private var tokenValidationTask: Task<Void, Never>?
 
     enum TokenStatus {
-        case unknown, valid, missing
+        case unknown, validating, valid, invalid, missing
     }
 
     var body: some View {
@@ -55,6 +56,13 @@ struct SettingsView: View {
                             Text("Connected")
                                 .font(.caption)
                                 .foregroundStyle(.green)
+                        case .invalid:
+                            Text("Invalid Token")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        case .validating:
+                            ProgressView()
+                                .controlSize(.small)
                         case .missing:
                             Text("Not Set")
                                 .font(.caption)
@@ -68,7 +76,7 @@ struct SettingsView: View {
                         SecureField("Enter Vercel auth token...", text: $settings.vercelToken)
                             .textFieldStyle(.roundedBorder)
                             .font(.caption.monospaced())
-                            .onChange(of: settings.vercelToken) { save() }
+                            .onChange(of: settings.vercelToken) { saveAndValidate() }
 
                         Button("Auto-Detect") {
                             detectToken()
@@ -87,7 +95,7 @@ struct SettingsView: View {
                             .textFieldStyle(.roundedBorder)
                             .font(.caption.monospaced())
                             .frame(maxWidth: 300)
-                            .onChange(of: settings.vercelTeamId) { save() }
+                            .onChange(of: settings.vercelTeamId) { saveAndValidate() }
                     }
                 }
             }
@@ -167,17 +175,15 @@ struct SettingsView: View {
         do {
             settings = try FileOperations.loadSettings()
         } catch {
-            // Fall back to defaults on error
             settings = .default
         }
         isLoading = false
-        tokenStatus = settings.vercelToken.isEmpty ? .missing : .valid
+        Task { await validateToken() }
     }
 
     private func save() {
         do {
             try FileOperations.saveSettings(settings)
-            tokenStatus = settings.vercelToken.isEmpty ? .missing : .valid
             withAnimation {
                 showSavedBadge = true
             }
@@ -191,11 +197,44 @@ struct SettingsView: View {
         }
     }
 
+    private func saveAndValidate() {
+        save()
+        tokenValidationTask?.cancel()
+        tokenValidationTask = Task {
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            await validateToken()
+        }
+    }
+
+    private func validateToken() async {
+        let token = settings.vercelToken
+        guard !token.isEmpty else {
+            tokenStatus = .missing
+            return
+        }
+        tokenStatus = .validating
+        let teamId = settings.vercelTeamId
+        guard let url = URL(string: "https://api.vercel.com/v9/projects?teamId=\(teamId)&limit=1") else {
+            tokenStatus = .invalid
+            return
+        }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            tokenStatus = status == 200 ? .valid : .invalid
+        } catch {
+            tokenStatus = .invalid
+        }
+    }
+
     private func detectToken() {
         let detection = FileOperations.detectVercelToken()
         if detection.found, let token = detection.token {
             settings.vercelToken = token
-            save()
+            saveAndValidate()
         } else {
             tokenStatus = .missing
         }
