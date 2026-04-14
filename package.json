@@ -1,6 +1,6 @@
 {
   "name": "keynote-deployer",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "One-click Keynote HTML export processor and Vercel deployer",
   "main": "dist-electron/main.js",
   "author": "Edward Hodge",
