@@ -1,7 +1,12 @@
-# Backlog
+# Keynote Deployer — Backlog (moved)
 
-## Bugs
-- [x] URL for GIF does not render on an iphone "A problem repeatedly occured on "http...... (fixed: lazy-decode, ea83a76)
+The canonical Keynote Deployer backlog now lives in the ImagineLab vault:
 
-## Todo
-- [x] The URL that you place into vercel should be designed for a framer embed. Is there any thing you could make more framer friendly in the URL ? Please use the Framer MCP to find a solution. (fixed: aspect-ratio wrapper + iframe-aware chrome hiding, a9e0adc)
+- **App work:** `~/Obsidian/ImagineLab/Backlogs/Keynote Deployer.md`
+- **Portal wiring (Keynote → Airtable → Framer):** `~/Obsidian/ImagineLab/Backlogs/Keynote Portal Wiring.md`
+
+These files are the single source of truth for `/resume`, the ImagineLab Backlog dashboard, and Cortex. Edit them — not this file.
+
+---
+
+_Why the move:_ the dashboard reader skips vault entries for any project that has a non-empty repo `BACKLOG.md`, so two backlogs were silently diverging. Vault is canonical because Cortex, Obsidian linking, and `/resume` all read from it. (Migration: 2026-05-17)
