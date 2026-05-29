@@ -16,6 +16,7 @@ Update this file after every correction.
 <!-- Add project-specific mistakes/solutions here -->
 <!-- Format: **[Date]** - Issue -> Solution -->
 **General** - Keynote exports images as low-res 266x150 thumbnails -> HiDPI fixes only help text/vectors; workaround is save images as PDF before inserting into Keynote
+**2026-04-21** - Vercel CLI token (com.vercel.cli/auth.json) expires silently → Auto-Detect re-reads the same expired token, 403 on team endpoints even if /v2/user returns "Connected". Fix: generate fresh token at vercel.com and paste manually. Also: app writes old in-memory token back to settings.json if you edit while app is running — quit the app first before manually editing settings.json.
 **General** - All 7 HiDPI fixes are idempotent -> Re-processing an already-patched file is safe, no need to check
 **2026-03-08** - `electron-builder` codesign fails with "resource fork, Finder information, or similar detritus not allowed" when building inside iCloud Drive -> Build with output dir outside iCloud: `npx electron-builder --config.directories.output=/tmp/keynote-deployer-release`
 **2026-03-08** - Vercel truncates long project subdomains (e.g. 36-char name → 30-char) → Never construct URL as `${name}.vercel.app`; read actual domain from `targets.production.alias` via Vercel API
