@@ -10,7 +10,7 @@ Update this file after every correction.
 ## Quick Context
 **What**: One-click GUI app that processes Keynote HTML exports (applies 7 HiDPI rendering fixes) and deploys them to Vercel. Replaces a 12-step manual process with drag-and-drop.
 **Dual stack**: Electron 33 + React 18 + TypeScript 5.7 + Vite 6 + Tailwind 3 (primary) | Swift 6.2 + SwiftUI + SwiftData macOS 15+ (parallel build, 100% parity)
-**Status**: Both apps at feature parity (45/45). Swift v1.0.2 released — Developer ID signed, notarized, Sparkle auto-updater integrated.
+**Status**: Both apps at feature parity (45/45). Swift v1.0.4 released — Developer ID signed, notarized, Sparkle auto-updater integrated.
 
 ## Lessons Learned
 <!-- Add project-specific mistakes/solutions here -->
@@ -144,12 +144,9 @@ Applied via regex to Keynote's exported `main.js`. All fixes are idempotent — 
 - **Notarization:** Keychain profile `notarytool` configured, must re-sign Sparkle nested binaries with `--options runtime --timestamp`
 
 ### Known Issues the Swift Build Must Respect
-- Vercel truncates long subdomains → always resolve via `targets.production.alias` API
 - Filter projects list by cross-referencing with local deployment history
 - All 7 HiDPI fixes are idempotent → safe to re-process
 - Build output must be outside iCloud Drive (use `/tmp/`)
-- `FileManager.copyItem` throws if destination exists → `removeItem` before `copyItem` when restoring backups
-- `Process` pipe deadlock: drain pipes on background threads first, then `waitUntilExit`
 
 ### Decision Protocol
 STOP and report blockers, never silently work around them.
