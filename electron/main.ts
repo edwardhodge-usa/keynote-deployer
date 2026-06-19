@@ -468,7 +468,7 @@ ipcMain.handle('deploy-gif', async (event, request: GifDeployRequest) => {
     sendProgress(2, 'Creating Vercel project', 'Setting up project...', 'active')
 
     // Step 3: Deploy to Vercel
-    const noopProgress = () => {} // GIF deploy sends its own progress
+    const noopProgress = () => {} // suppress per-step events from deployToVercel; steps 2-3 are sent after it returns
     const deployResult = await deployToVercel(
       tempFolder,
       request.projectName,
@@ -543,7 +543,8 @@ ipcMain.handle('deploy-gif', async (event, request: GifDeployRequest) => {
 
 // Stills folder picker — returns natural-sorted image paths
 ipcMain.handle('select-stills-folder', async () => {
-  const r = await dialog.showOpenDialog({ properties: ['openDirectory'] })
+  if (!mainWindow) return { success: false, error: 'No window' }
+  const r = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] })
   if (r.canceled || !r.filePaths[0]) return { success: false, error: 'cancelled' }
   const dir = r.filePaths[0]
   const all = await fs.readdir(dir)

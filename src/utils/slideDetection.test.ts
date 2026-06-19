@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { detectSlides, mergeBuildRuns, findQuietRuns } from './slideDetection'
+import { detectSlides } from './slideDetection'
 
 // Build a synthetic diffs array: quiet holds (0) separated by gaps of given peak.
 function synth(holds: number, holdLen: number, gapPeaks: number[]): number[] {
@@ -12,7 +12,7 @@ function synth(holds: number, holdLen: number, gapPeaks: number[]): number[] {
 }
 
 describe('conservative Auto threshold', () => {
-  it('merges only clearly-tiny micro-build gaps (<=0.5), never a real slide change', () => {
+  it('merges only clearly-tiny micro-build gaps (< 0.5, exclusive), never a real slide change', () => {
     // 4 holds; gaps: 0.7 ambiguous, 1.2 (real change), 0.45 (micro-build)
     const diffs = synth(4, 10, [0.7, 1.2, 0.45])
     const slides = detectSlides(diffs)

@@ -4,6 +4,15 @@ import { detectSlides, findQuietRuns, type DetectedSlide } from '../utils/slideD
 import { matchStillsToFrames } from '../utils/stillsMatch'
 import { toKebabCase } from '../utils/strings'
 import SlideBoundaryEditor from './SlideBoundaryEditor'
+import type { ProcessingStep } from '../types'
+
+// Diff/match sampling: ~1000 points on a uniform grid. Shared by parseGifBuffer
+// (frame diffs) and sampleCanvasToGrid (stills) so the two stay in sync.
+const SAMPLE_POINTS = 1000
+function gridStep(width: number, height: number) {
+  const gridSize = Math.ceil(Math.sqrt(SAMPLE_POINTS))
+  return { stepX: Math.floor(width / gridSize), stepY: Math.floor(height / gridSize) }
+}
 
 // ── Types ──
 
@@ -30,9 +39,9 @@ export default function GifViewer() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [projectName, setProjectName] = useState('')
   const [secureEmbed, setSecureEmbed] = useState(true)
-  const [deployResult, setDeployResult] = useState<{ url: string } | null>(null)
+  const [deployResult, setDeployResult] = useState<{ url: string; slideCount: number } | null>(null)
   const [deployError, setDeployError] = useState('')
-  const [deploySteps, setDeploySteps] = useState<any[]>([])
+  const [deploySteps, setDeploySteps] = useState<ProcessingStep[]>([])
   const [copied, setCopied] = useState<string | null>(null)
   const [gifFilePath, setGifFilePath] = useState('')
   const [gifFileSize, setGifFileSize] = useState(0)
@@ -150,9 +159,7 @@ export default function GifViewer() {
 
       // Sample points for diff detection (~1000 points on a grid)
       const samplePoints: number[] = []
-      const gridSize = Math.ceil(Math.sqrt(1000))
-      const stepX = Math.floor(gifWidth / gridSize)
-      const stepY = Math.floor(gifHeight / gridSize)
+      const { stepX, stepY } = gridStep(gifWidth, gifHeight)
       for (let y = 0; y < gifHeight; y += stepY) {
         for (let x = 0; x < gifWidth; x += stepX) {
           samplePoints.push(x, y)
@@ -354,9 +361,7 @@ export default function GifViewer() {
    * Returns a flat number[] of RGB values at the grid sample points.
    */
   const sampleCanvasToGrid = (ctx: CanvasRenderingContext2D, width: number, height: number): number[] => {
-    const gridSize = Math.ceil(Math.sqrt(1000))
-    const stepX = Math.floor(width / gridSize)
-    const stepY = Math.floor(height / gridSize)
+    const { stepX, stepY } = gridStep(width, height)
     const imageData = ctx.getImageData(0, 0, width, height)
     const pixels = imageData.data
     const samples: number[] = []
@@ -525,7 +530,7 @@ export default function GifViewer() {
     })
 
     if (res.success && res.data?.success) {
-      setDeployResult({ url: res.data.url })
+      setDeployResult({ url: res.data.url, slideCount: activeSlides.length })
       setPhase('complete')
     } else {
       setDeployError(res.error || res.data?.error || 'Deployment failed')
@@ -562,8 +567,7 @@ export default function GifViewer() {
 
   // ── Render ──
 
-  const autoSlides = parsedRef.current?.slides ?? []
-  const slides = autoSlides
+  const slides = parsedRef.current?.slides ?? []
   const slideCount = slides.length
 
   return (
@@ -881,7 +885,7 @@ export default function GifViewer() {
                 GIF Deployed Successfully
               </h1>
               <p className="text-[15px] text-gray-500 dark:text-gray-400 mt-1">
-                {parsedRef.current?.slides.length ?? 0} slides, interactive viewer live on Vercel
+                {deployResult?.slideCount ?? 0} slides, interactive viewer live on Vercel
               </p>
             </div>
 

@@ -35,14 +35,6 @@ export interface ProcessingProgress {
   step: ProcessingStep
 }
 
-// Deployment result
-export interface DeploymentResult {
-  success: boolean
-  projectName: string
-  url: string
-  error?: string
-}
-
 // Processing + deployment request
 export interface ProcessRequest {
   folderPath: string

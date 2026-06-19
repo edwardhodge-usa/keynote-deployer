@@ -2,7 +2,6 @@ import type { ProcessingStep, StepStatus } from '../types'
 
 interface DeployProgressProps {
   steps: ProcessingStep[]
-  currentStep: number
 }
 
 function statusIcon(status: StepStatus): string {

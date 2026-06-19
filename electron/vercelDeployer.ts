@@ -1,6 +1,7 @@
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import path from 'path'
+import fs from 'fs/promises'
 import type { VercelProject, ProcessingStep } from '../src/types/index'
 
 const execFileAsync = promisify(execFile)
@@ -77,7 +78,6 @@ async function findVercelCli(): Promise<string> {
   }
 
   // Try known locations
-  const fs = await import('fs/promises')
   for (const candidate of candidates) {
     try {
       await fs.access(candidate)
@@ -113,7 +113,6 @@ export async function deployToVercel(
 
   // Write vercel.json with CSP headers if secure embed enabled
   if (secureEmbed && embedAllowedDomains) {
-    const fs = await import('fs/promises')
     const domains = embedAllowedDomains
       .split(/[\s,]+/)
       .filter(Boolean)

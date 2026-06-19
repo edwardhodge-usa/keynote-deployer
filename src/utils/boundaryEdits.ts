@@ -5,6 +5,7 @@ export function removeStop(slides: DetectedSlide[], restFrame: number): Detected
 }
 
 export function insertStop(slides: DetectedSlide[], frame: number, diffs: number[]): DetectedSlide[] {
+  if (slides.some(s => s.restFrame === frame)) return slides // already a stop at this frame
   const runs = findQuietRuns(diffs)
   const run = runs.find(r => frame >= r.start && frame <= r.end)
     ?? runs.reduce((best, r) => Math.abs((r.start+r.end)/2 - frame) < Math.abs((best.start+best.end)/2 - frame) ? r : best, runs[0])
@@ -14,5 +15,11 @@ export function insertStop(slides: DetectedSlide[], frame: number, diffs: number
 }
 
 function recomputeTransitions(slides: DetectedSlide[]): DetectedSlide[] {
-  return slides.map((s, i) => ({ ...s, transitionFrames: i > 0 ? { start: slides[i-1].holdEnd + 1, end: s.holdStart - 1 } : null }))
+  return slides.map((s, i) => {
+    if (i === 0) return { ...s, transitionFrames: null }
+    const start = slides[i - 1].holdEnd + 1
+    const end = s.holdStart - 1
+    // Inverted/empty range (overlapping holds) → no transition, just a cut.
+    return { ...s, transitionFrames: start <= end ? { start, end } : null }
+  })
 }

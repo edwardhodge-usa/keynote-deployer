@@ -1,6 +1,8 @@
 import type { VerificationResult, FixVerification, ProcessingStep } from '../src/types/index'
 
-// Expected replacement patterns (what should exist in deployed main.js)
+// Expected replacement patterns (what should exist in deployed main.js).
+// The literal "3"s below are the HiDPI scale factor — keep in sync with HIDPI_SCALE
+// in keynoteProcessor.ts (these are string-contains checks, so they can't import it).
 const EXPECTED_FIXES = [
   {
     number: 1,

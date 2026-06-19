@@ -22,7 +22,7 @@ export async function verifyRuntime(
     reRenderTriggered: false,
   }
 
-  let browser
+  let browser: Awaited<ReturnType<typeof puppeteer.launch>> | undefined
   try {
     onProgress({
       id: 15,
