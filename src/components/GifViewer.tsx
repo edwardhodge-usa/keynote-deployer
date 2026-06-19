@@ -366,6 +366,7 @@ export default function GifViewer() {
       slideCount: parsedRef.current?.slides.length ?? 0,
       title: gifFilePath.split('/').pop()?.replace(/\.gif$/i, '') || 'GIF Presentation',
       secureEmbed,
+      slides: parsedRef.current?.slides ?? [],
     })
 
     if (res.success && res.data?.success) {
