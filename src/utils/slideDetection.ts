@@ -28,20 +28,13 @@ const QUIET_THRESHOLD = 0.3
 const MIN_QUIET_RUN = 8
 
 /**
- * A gap between two quiet runs is a REAL slide transition only if its peak
- * frame-diff clears this bar. In-slide builds (text reveals, bullet-by-bullet
- * disclosure) produce small, localized diffs that fall well below it, so the
- * two holds they separate belong to the SAME slide and get merged.
- *
- * Scale: diff is mean abs per-channel delta on a 0–255 downsample. Calibrated
- * against a known 39-slide quals deck via headless-browser (canvas-exact) diffs:
- * in-slide build steps peaked ≤0.56 while every real slide change was ≥1.0 — a
- * clean empty gap. 0.9 sits in it and yields exactly 39 on BOTH the raw Keynote
- * export AND the re-encoded deploy (robust across encodes). NOTE: this gap is
- * narrow; a very different deck style may need re-tuning or an adaptive cut.
- * Tunable.
+ * Precision-first: Auto is now only a SEED (Stills/Manual are the reliable sources).
+ * Merge ONLY unambiguous micro-builds (tiny localized reveals). A real text-only slide
+ * change on a constant-background deck can be as small as ~1.0, and ambiguous reveals
+ * sit at 0.5–0.9 — so we merge only <=0.5 and never risk dropping a real slide.
+ * Over-counting a build is acceptable here; the human fixes it in Manual, or Stills overrides.
  */
-const TRANSITION_PEAK = 0.9
+const TRANSITION_PEAK = 0.5
 
 export function findQuietRuns(diffs: number[]): QuietRun[] {
   const runs: QuietRun[] = []
