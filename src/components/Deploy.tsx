@@ -101,7 +101,7 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
     e.preventDefault()
     const items = e.dataTransfer.files
     if (items.length > 0) {
-      const droppedPath = (items[0] as File & { path: string }).path
+      const droppedPath = window.electron.getFilePath(items[0])
       if (droppedPath) {
         await validateFolder(droppedPath)
       }
@@ -286,7 +286,7 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
               Applying fixes and deploying to Vercel.
             </p>
             <div className="card p-4">
-              <DeployProgress steps={steps} currentStep={0} />
+              <DeployProgress steps={steps} />
             </div>
           </div>
         )}
@@ -470,7 +470,7 @@ export default function Deploy({ selectedProject, onProjectUsed }: DeployProps) 
             </div>
 
             <div className="card p-4 mb-6">
-              <DeployProgress steps={steps} currentStep={0} />
+              <DeployProgress steps={steps} />
             </div>
 
             {error && (

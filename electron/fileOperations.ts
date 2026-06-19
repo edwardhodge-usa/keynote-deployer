@@ -62,6 +62,7 @@ export async function addHistoryEntry(entry: HistoryEntry): Promise<void> {
 export async function removeHistoryEntry(id: string): Promise<void> {
   const history = await loadHistory()
   const filtered = history.filter(entry => entry.id !== id)
+  await fs.mkdir(getDataDir(), { recursive: true })
   await fs.writeFile(getHistoryPath(), JSON.stringify(filtered, null, 2), 'utf-8')
 }
 

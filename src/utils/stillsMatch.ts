@@ -3,6 +3,7 @@ export function naturalSort(names: string[]): string[] {
   return [...names].sort((a, b) => key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0)
 }
 function meanAbs(a: number[], b: number[]): number {
+  if (a.length === 0) return 0
   let s = 0; for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]); return s / a.length
 }
 // DP: dp[i][f] = min total cost matching stills 0..i with still i -> frame f (f strictly increasing).

@@ -250,7 +250,7 @@ export function generateGifViewerHtml(
   <script>${gifuctBundle}</script>
 
   <script>
-    // ── Build-time slide boundaries (baked in by gifViewerGenerator.ts) ──
+    // ── Baked slide boundaries (build-time, from Keynote Deployer) ──
     var BAKED_SLIDES = ${JSON.stringify(slides)};
 
     // ── Secure embed ──
