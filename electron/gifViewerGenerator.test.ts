@@ -12,8 +12,7 @@ describe('generateGifViewerHtml', () => {
     expect(html).toContain('"restFrame":10')
     expect(html).toContain('"restFrame":40')
   })
-  it.skip('does NOT run client-side quiet-run detection', () => {
-    // unskip in Task 6
+  it('does NOT run client-side quiet-run detection', () => {
     const html = generateGifViewerHtml('deck.gif', false, slides)
     expect(html).not.toContain('findQuietRuns')
     expect(html).not.toContain('mergeBuildRuns')
