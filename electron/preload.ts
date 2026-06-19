@@ -17,6 +17,7 @@ export interface ElectronAPI {
   openUrl: (url: string) => Promise<void>
   copyToClipboard: (text: string) => Promise<void>
   getSystemTheme: () => Promise<IpcResponse<ThemeState>>
+  selectStillsFolder: () => Promise<IpcResponse<string[]>>
   onProcessingProgress: (callback: (progress: ProcessingProgress) => void) => void
   onThemeChanged: (callback: (theme: ThemeState) => void) => void
   onNavigate: (callback: (tab: string) => void) => void
@@ -58,6 +59,8 @@ const electronAPI: ElectronAPI = {
   copyToClipboard: (text: string) => ipcRenderer.invoke('copy-to-clipboard', text),
 
   getSystemTheme: () => ipcRenderer.invoke('get-system-theme'),
+
+  selectStillsFolder: () => ipcRenderer.invoke('select-stills-folder'),
 
   onProcessingProgress: (callback: (progress: ProcessingProgress) => void) => {
     ipcRenderer.on('processing-progress', (_event, progress) => callback(progress))

@@ -26,6 +26,7 @@ export interface ElectronAPI {
   openUrl: (url: string) => Promise<void>
   copyToClipboard: (text: string) => Promise<void>
   getSystemTheme: () => Promise<IpcResponse<ThemeState>>
+  selectStillsFolder: () => Promise<IpcResponse<string[]>>
   onProcessingProgress: (callback: (progress: ProcessingProgress) => void) => void
   onThemeChanged: (callback: (theme: ThemeState) => void) => void
   removeAllListeners: (channel: string) => void

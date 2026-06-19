@@ -9,6 +9,7 @@ import { verifyRuntime } from './runtimeVerifier'
 import type { ProcessRequest, GifDeployRequest, HistoryEntry, ProcessingStep } from '../src/types/index'
 import { generateGifViewerHtml } from './gifViewerGenerator'
 import fs from 'fs/promises'
+import { naturalSort } from '../src/utils/stillsMatch'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -538,6 +539,17 @@ ipcMain.handle('deploy-gif', async (event, request: GifDeployRequest) => {
   } catch (error) {
     return { success: false, error: String(error) }
   }
+})
+
+// Stills folder picker — returns natural-sorted image paths
+ipcMain.handle('select-stills-folder', async () => {
+  const r = await dialog.showOpenDialog({ properties: ['openDirectory'] })
+  if (r.canceled || !r.filePaths[0]) return { success: false, error: 'cancelled' }
+  const dir = r.filePaths[0]
+  const all = await fs.readdir(dir)
+  const imgs = naturalSort(all.filter(f => /\.(jpe?g|png|webp)$/i.test(f))).map(f => path.join(dir, f))
+  if (imgs.length === 0) return { success: false, error: 'No images (jpg/png/webp) found in folder' }
+  return { success: true, data: imgs }
 })
 
 // Get system theme
