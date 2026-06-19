@@ -501,6 +501,12 @@ export default function GifViewer() {
       : boundarySource === 'stills' ? stillsSlides
       : (parsedRef.current?.slides ?? [])
 
+    if (activeSlides.length === 0) {
+      setDeployError('Add at least one slide stop to deploy.')
+      setPhase('error')
+      return
+    }
+
     setPhase('deploying')
     setDeploySteps([
       { id: 1, label: 'Preparing files', detail: '', status: 'pending' },
@@ -806,18 +812,33 @@ export default function GifViewer() {
               Secure Embed — disable downloads, restrict embedding to portal
             </label>
 
-            <div className="flex gap-3">
-              <button onClick={() => setPhase('viewing')} className="btn btn-secondary">
-                Back
-              </button>
-              <button
-                onClick={startDeploy}
-                disabled={!projectName.trim()}
-                className="btn btn-primary flex-1"
-              >
-                Deploy GIF
-              </button>
-            </div>
+            {(() => {
+              const activeCount =
+                boundarySource === 'manual' ? manualSlides.length
+                : boundarySource === 'stills' ? stillsSlides.length
+                : (parsedRef.current?.slides.length ?? 0)
+              return (
+                <>
+                  {activeCount === 0 && (
+                    <p className="text-[12px] text-yellow-400 mb-3">
+                      Add at least one slide stop to deploy.
+                    </p>
+                  )}
+                  <div className="flex gap-3">
+                    <button onClick={() => setPhase('viewing')} className="btn btn-secondary">
+                      Back
+                    </button>
+                    <button
+                      onClick={startDeploy}
+                      disabled={!projectName.trim() || activeCount === 0}
+                      className="btn btn-primary flex-1"
+                    >
+                      Deploy GIF
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
           </div>
         )}
 

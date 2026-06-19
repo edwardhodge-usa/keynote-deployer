@@ -378,6 +378,13 @@ export function generateGifViewerHtml(
       }
 
       // First paint: composite up to slide 1's restFrame, then background-fill the rest.
+      if (!slides || slides.length === 0) {
+        var noSlidesDiv = document.createElement('div');
+        noSlidesDiv.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui,sans-serif;color:#e5e5e5;background:#0a0a0a;font-size:16px;';
+        noSlidesDiv.textContent = 'No slides to display';
+        document.body.appendChild(noSlidesDiv);
+        return;
+      }
       ensureCompositedTo(slides[0].restFrame);
       console.log('Loaded ' + slides.length + ' baked slides from ' + totalFrames + ' frames');
       (function backgroundFill(){
