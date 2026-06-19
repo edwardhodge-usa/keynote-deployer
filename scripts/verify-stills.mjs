@@ -1,13 +1,17 @@
 /**
- * Headless end-to-end verification for the Stills boundary source (Task 11).
+ * Headless end-to-end verification for the Stills boundary source.
  *
  * Assertions:
- *   A. Exactly 39 monotonic frame boundaries from matchStillsToFrames
- *   B. For each of the 39 matched frames, the GIF viewer renders that stop and
+ *   A. Exactly N monotonic frame boundaries from matchStillsToFrames
+ *   B. For each of the N matched frames, the GIF viewer renders that stop and
  *      the rendered canvas pixels match the corresponding still (mean-abs pixel
  *      distance below tolerance when both are downsampled to the same grid).
  *
- * Run: node scripts/verify-stills.mjs
+ * Usage (deck-agnostic):
+ *   node scripts/verify-stills.mjs [gifPath] [stillsDir] [expectedCount]
+ *
+ * Defaults (deck-1 — 39-slide ILS Quals 2026):
+ *   node scripts/verify-stills.mjs
  */
 
 import { createRequire } from 'module';
@@ -25,15 +29,25 @@ const PROJECT_ROOT = join(__dirname, '..');
 const require = createRequire(join(PROJECT_ROOT, 'package.json'));
 const puppeteer = require('puppeteer');
 
-// ── Config ──
-const GIF_PATH = "/Users/EdwardHodge_1/Library/Mobile Documents/com~apple~CloudDocs/01_IMAGINE LAB STUDIOS/05_BUSINESS_DEV/Quals Decks/2026 Master Quals /GIF VERSIONS/ILS_Quals 2026 V2 projects and process.gif";
-const STILLS_DIR = "/Users/EdwardHodge_1/Library/Mobile Documents/com~apple~CloudDocs/01_IMAGINE LAB STUDIOS/05_BUSINESS_DEV/Quals Decks/2026 Master Quals /GIF VERSIONS/test jpg/ILS_Quals 2026 V2";
-const EXPECTED_SLIDE_COUNT = 39;
+// ── CLI args / defaults ──
+const [,, argGifPath, argStillsDir, argExpectedCount] = process.argv;
+
+const GIF_PATH = argGifPath
+  ?? "/Users/EdwardHodge_1/Library/Mobile Documents/com~apple~CloudDocs/01_IMAGINE LAB STUDIOS/05_BUSINESS_DEV/Quals Decks/2026 Master Quals /GIF VERSIONS/ILS_Quals 2026 V2 projects and process.gif";
+
+const STILLS_DIR = argStillsDir
+  ?? "/Users/EdwardHodge_1/Library/Mobile Documents/com~apple~CloudDocs/01_IMAGINE LAB STUDIOS/05_BUSINESS_DEV/Quals Decks/2026 Master Quals /GIF VERSIONS/test jpg/ILS_Quals 2026 V2";
+
+const EXPECTED_SLIDE_COUNT = argExpectedCount != null ? parseInt(argExpectedCount, 10) : 39;
+
 const GIF_FILENAME = 'deck.gif';
 // Tolerance: mean absolute pixel difference (0–255 scale) per channel.
 // Stills are JPEG exports so there's JPEG compression noise. A threshold of 20
 // is generous enough to absorb JPEG artefacts while still catching off-by-one.
 const PIXEL_TOLERANCE = 20;
+
+// Port: vary by expected count to allow parallel runs without collision
+const port = 18766 + (EXPECTED_SLIDE_COUNT % 100);
 
 // ── Inline helpers (replicated from src/utils/stillsMatch.ts) ──
 function naturalSort(names) {
@@ -42,7 +56,7 @@ function naturalSort(names) {
 }
 
 function generateHtml(slides) {
-  const genScript = join(tmpdir(), 'kd-gen-stills-html.mjs');
+  const genScript = join(tmpdir(), `kd-gen-stills-html-${EXPECTED_SLIDE_COUNT}.mjs`);
   const slidesJson = JSON.stringify(slides);
   writeFileSync(genScript, `
 import { generateGifViewerHtml } from './electron/gifViewerGenerator.ts';
@@ -77,7 +91,13 @@ async function main() {
   let tempDir = null;
   let serverProc = null;
   let browser = null;
-  const port = 18766;
+
+  console.log('[verify-stills] Config:');
+  console.log(`  GIF:            ${GIF_PATH}`);
+  console.log(`  Stills dir:     ${STILLS_DIR}`);
+  console.log(`  Expected count: ${EXPECTED_SLIDE_COUNT}`);
+  console.log(`  Pixel tol:      ${PIXEL_TOLERANCE}`);
+  console.log(`  HTTP port:      ${port}`);
 
   // Sanity checks
   if (!existsSync(GIF_PATH)) {
@@ -149,7 +169,7 @@ async function main() {
     console.log(`[verify-stills] Loaded ${stillsBase64.length} stills`);
 
     // Run everything in the browser (chunked to avoid serialization limits)
-    console.log('[verify-stills] Running GIF parse + stills match in browser (may take 30-90s for 2704 frames)...');
+    console.log(`[verify-stills] Running GIF parse + stills match in browser (may take 30-90s)...`);
 
     // First: parse GIF and build frame grids
     const gifResult = await matchPage.evaluate(async (gifBase64) => {
@@ -217,7 +237,7 @@ async function main() {
     for (let batchStart = 0; batchStart < stillsBase64.length; batchStart += BATCH_SIZE) {
       const batch = stillsBase64.slice(batchStart, batchStart + BATCH_SIZE);
       const batchEnd = Math.min(batchStart + BATCH_SIZE, stillsBase64.length);
-      await matchPage.evaluate(async (batch, startIdx) => {
+      await matchPage.evaluate(async (batch, startIdx, totalCount) => {
         function samplePixels(imageData, width, height) {
           const gridSize = Math.ceil(Math.sqrt(1000));
           const stepX = Math.floor(width / gridSize);
@@ -235,7 +255,7 @@ async function main() {
 
         const gifWidth = window._kd_gifWidth;
         const gifHeight = window._kd_gifHeight;
-        if (!window._kd_stillGrids) window._kd_stillGrids = new Array(39);
+        if (!window._kd_stillGrids) window._kd_stillGrids = new Array(totalCount);
 
         const sc = document.createElement('canvas');
         sc.width = gifWidth; sc.height = gifHeight;
@@ -255,7 +275,7 @@ async function main() {
             img.src = `data:image/jpeg;base64,${batch[i]}`;
           });
         }
-      }, batch, batchStart);
+      }, batch, batchStart, EXPECTED_SLIDE_COUNT);
       console.log(`[verify-stills] Sampled stills ${batchStart + 1}-${batchEnd}`);
     }
 
@@ -299,7 +319,7 @@ async function main() {
       throw new Error('Browser errors during matching:\n' + matchErrors.join('\n'));
     }
 
-    // ── Assert A: exactly 39 monotonic boundaries ──
+    // ── Assert A: exactly N monotonic boundaries ──
     if (matchResult.length !== EXPECTED_SLIDE_COUNT) {
       throw new Error(`Assertion A FAILED: expected ${EXPECTED_SLIDE_COUNT} matched frames, got ${matchResult.length}`);
     }
@@ -377,6 +397,7 @@ async function main() {
 
     let matchedStops = 0;
     const failures = [];
+    let worstDiff = 0;
 
     for (let slideIdx = 0; slideIdx < EXPECTED_SLIDE_COUNT; slideIdx++) {
       // Navigate to slide
@@ -396,7 +417,7 @@ async function main() {
       }
 
       // Get canvas pixels and compare to still
-      const pixelResult = await viewerPage.evaluate(async (stillBase64, slideIdx) => {
+      const pixelResult = await viewerPage.evaluate(async (stillBase64) => {
         const canvas = document.getElementById('slideCanvas');
         if (!canvas) return { error: 'no #slideCanvas element' };
         const w = canvas.width;
@@ -435,7 +456,7 @@ async function main() {
         }
         const meanDiff = totalDiff / (count * 3);
         return { meanDiff, w, h };
-      }, stillsBase64[slideIdx], slideIdx);
+      }, stillsBase64[slideIdx]);
 
       if (pixelResult.error) {
         failures.push({ slideIdx, error: pixelResult.error });
@@ -444,6 +465,7 @@ async function main() {
         const passed = pixelResult.meanDiff <= PIXEL_TOLERANCE;
         if (passed) matchedStops++;
         else failures.push({ slideIdx, meanDiff: pixelResult.meanDiff });
+        if (pixelResult.meanDiff > worstDiff) worstDiff = pixelResult.meanDiff;
         const mark = passed ? '✓' : '✗';
         const line = `[verify-stills] Stop ${String(slideIdx + 1).padStart(2)}: mean_diff=${pixelResult.meanDiff.toFixed(2)} (tol=${PIXEL_TOLERANCE}) ${mark}`;
         if (!passed || process.env.VERBOSE || slideIdx < 3 || slideIdx >= EXPECTED_SLIDE_COUNT - 3) {
@@ -463,6 +485,7 @@ async function main() {
     console.log(`  Matched frames:    ${matchResult.length}`);
     console.log(`  Monotonic:         ${isMonotonic ? 'yes' : 'NO'}`);
     console.log(`  Pixel tolerance:   ${PIXEL_TOLERANCE}`);
+    console.log(`  Worst diff:        ${worstDiff.toFixed(2)}`);
     console.log(`  Stops matched:     ${matchedStops} / ${EXPECTED_SLIDE_COUNT}`);
 
     if (failures.length > 0) {
@@ -477,12 +500,13 @@ async function main() {
       throw new Error('Assertion A failed — see above');
     }
     if (matchedStops !== EXPECTED_SLIDE_COUNT) {
-      throw new Error(`Assertion B FAILED: only ${matchedStops}/${EXPECTED_SLIDE_COUNT} stops matched their still (tolerance=${PIXEL_TOLERANCE})`);
+      console.error(`\n[verify-stills] DONE_WITH_CONCERNS: only ${matchedStops}/${EXPECTED_SLIDE_COUNT} stops matched their still (worst_diff=${worstDiff.toFixed(2)}, tolerance=${PIXEL_TOLERANCE})`);
+      process.exit(1);
     }
 
-    console.log('\n[verify-stills] ALL ASSERTIONS PASSED ✓');
-    console.log(`  A: 39 monotonic boundaries ✓`);
-    console.log(`  B: All 39 stops match their still (tolerance=${PIXEL_TOLERANCE}) ✓`);
+    console.log(`\n[verify-stills] ALL ASSERTIONS PASSED ✓`);
+    console.log(`  A: ${EXPECTED_SLIDE_COUNT} monotonic boundaries ✓`);
+    console.log(`  B: All ${EXPECTED_SLIDE_COUNT} stops match their still (worst_diff=${worstDiff.toFixed(2)}, tolerance=${PIXEL_TOLERANCE}) ✓`);
     process.exit(0);
 
   } catch (err) {

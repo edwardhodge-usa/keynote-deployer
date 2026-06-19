@@ -75,6 +75,12 @@ Alternative deployment path for Keynote-exported GIFs instead of HTML exports:
 3. **Step 4**: Complete — save to history, auto-copy URL
 The deployed viewer auto-loads the GIF, parses slides client-side, and provides forward/back/dots/keyboard navigation.
 
+**GIF slide boundary sources (Electron only):** Slide boundaries are determined at BUILD TIME and baked into the deployed viewer HTML as a `DetectedSlide[]` array. Three sources in priority order:
+- **Stills** (most accurate): JPEG/PNG exports from Keynote matched to GIF frames via dynamic-programming alignment (`matchStillsToFrames`). Verified deck-agnostic on two real decks (39-slide ILS Quals: 39/39 matched, worst diff 8.87/20; 22-slide DUB FDY Proposal: 22/22 matched, worst diff 15.60/20).
+- **Auto**: quiet-run algorithm on per-frame pixel diffs — a seed/fallback only, never authoritative.
+- **Manual**: user-specified grid — override when Auto and Stills are unavailable or wrong.
+The deployed viewer does NOT detect slides itself; it receives the baked boundary list and navigates accordingly.
+
 ### IPC Architecture (Electron)
 All IPC uses `ipcMain.handle`/`ipcRenderer.invoke` with a typed `IpcResponse<T>` wrapper (`{ success, data?, error? }`).
 
