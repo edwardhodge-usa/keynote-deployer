@@ -433,30 +433,48 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
 
       // ── Slide detection (ES5 copy of src/utils/slideDetection.ts — keep in sync) ──
       var MIN_QUIET_RUN = 8;
+      // A gap between quiet runs is a real transition only if its peak diff clears
+      // this bar; lower-energy gaps are in-slide builds (text reveals) → same slide.
+      // Calibrated on a known 39-slide deck (canvas-exact diffs): builds peaked
+      // <=0.56, real slide changes >=1.0. 0.9 yields 39 on both raw + re-encoded
+      // exports. Narrow gap — may need re-tuning per deck. (See slideDetection.ts)
+      var TRANSITION_PEAK = 0.9;
       var allQuietRuns = [];
       var runStart = null;
+      function pushRun(s, e) { allQuietRuns.push({ start: s, end: e, length: e - s + 1, lastStart: s, lastEnd: e }); }
       for (var i = 0; i < diffs.length; i++) {
         if (diffs[i] <= QUIET_THRESHOLD) {
           if (runStart === null) runStart = i;
         } else {
-          if (runStart !== null && (i - runStart) >= MIN_QUIET_RUN) {
-            allQuietRuns.push({ start: runStart, end: i - 1, length: i - runStart });
-          }
+          if (runStart !== null && (i - runStart) >= MIN_QUIET_RUN) pushRun(runStart, i - 1);
           runStart = null;
         }
       }
-      if (runStart !== null && (diffs.length - runStart) >= MIN_QUIET_RUN) {
-        allQuietRuns.push({ start: runStart, end: diffs.length - 1, length: diffs.length - runStart });
+      if (runStart !== null && (diffs.length - runStart) >= MIN_QUIET_RUN) pushRun(runStart, diffs.length - 1);
+
+      // Merge adjacent runs separated by a low-energy in-slide build. The merged
+      // run keeps the first sub-run's start (entry) and the last sub-run's
+      // end/start (fully-built state used for the snapshot).
+      function gapPeak(a, b) { var p = 0; for (var k = a.end + 1; k <= b.start - 1; k++) { if (diffs[k] > p) p = diffs[k]; } return p; }
+      var mergedRuns = [];
+      for (var i = 0; i < allQuietRuns.length; i++) {
+        var nr = allQuietRuns[i];
+        if (mergedRuns.length > 0 && gapPeak(mergedRuns[mergedRuns.length - 1], nr) < TRANSITION_PEAK) {
+          var cr = mergedRuns[mergedRuns.length - 1];
+          cr.end = nr.end; cr.length = cr.end - cr.start + 1; cr.lastStart = nr.start; cr.lastEnd = nr.end;
+        } else {
+          mergedRuns.push({ start: nr.start, end: nr.end, length: nr.length, lastStart: nr.lastStart, lastEnd: nr.lastEnd });
+        }
       }
 
       // Adaptive filtering: remove transition artifact "dark pauses" that
       // barely meet the minimum but are much shorter than real slide holds.
-      var quietRuns = allQuietRuns;
-      if (allQuietRuns.length >= 3) {
-        var lengths = allQuietRuns.map(function(r) { return r.length; }).sort(function(a, b) { return a - b; });
+      var quietRuns = mergedRuns;
+      if (mergedRuns.length >= 3) {
+        var lengths = mergedRuns.map(function(r) { return r.length; }).sort(function(a, b) { return a - b; });
         var median = lengths[Math.floor(lengths.length / 2)];
-        var adaptiveMin = Math.max(MIN_QUIET_RUN, Math.floor(median * 0.5));
-        quietRuns = allQuietRuns.filter(function(r) { return r.length >= adaptiveMin; });
+        var adaptiveMin = Math.max(MIN_QUIET_RUN, Math.floor(median * 0.33)); // 0.5→0.33: build-merge is primary now; 0.5 dropped a real short slide
+        quietRuns = mergedRuns.filter(function(r) { return r.length >= adaptiveMin; });
       }
 
       var slides = [];
@@ -464,8 +482,9 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
         var run = quietRuns[i];
         var prevRun = i > 0 ? quietRuns[i - 1] : null;
         slides.push({
-          snapshotKey: run.start,
-          restFrame: Math.floor((run.start + run.end) / 2),
+          // Snapshot the LAST sub-run (fully-built state); captured at its start+SETTLE.
+          snapshotKey: run.lastStart,
+          restFrame: Math.floor((run.lastStart + run.lastEnd) / 2),
           holdStart: run.start,
           holdEnd: run.end,
           transitionFrames: prevRun
