@@ -67,11 +67,19 @@ The core workflow runs as a single `process-and-deploy` IPC call that pushes pro
 5. **Step 16**: Complete — save to history, auto-copy URL if enabled
 
 ### GIF Deploy Pipeline (4 steps)
+**Why it exists:** Keynote's HTML export rasters images as low-res 266×150 thumbnails, and the 7 HiDPI fixes only repair text/vectors — NOT raster images. So image-heavy decks look bad through the HTML deploy path. The GIF path is the fallback: export the deck as an animated GIF (full rendered slides) and deploy an interactive viewer. Caveat: GIF is 256-color, so it beats the thumbnail problem but isn't lossless — photos/gradients band. "Better than broken," not full fidelity.
+
 Alternative deployment path for Keynote-exported GIFs instead of HTML exports:
 1. **Step 1**: `gifViewerGenerator.ts` — generates self-contained HTML viewer page, copies GIF to temp deploy folder
 2. **Steps 2-3**: Reuses `vercelDeployer.ts` — same REST API project creation + CLI deployment
 3. **Step 4**: Complete — save to history, auto-copy URL
 The deployed viewer auto-loads the GIF, parses slides client-side, and provides forward/back/dots/keyboard navigation.
+
+**GIF slide boundary sources (Electron only):** Slide boundaries are determined at BUILD TIME and baked into the deployed viewer HTML as a `DetectedSlide[]` array. Three sources in priority order:
+- **Stills** (most accurate): JPEG/PNG exports from Keynote matched to GIF frames via dynamic-programming alignment (`matchStillsToFrames`). Verified deck-agnostic on two real decks (39-slide ILS Quals: 39/39 matched, worst diff 8.87/20; 22-slide DUB FDY Proposal: 22/22 matched, worst diff 15.60/20).
+- **Auto**: quiet-run algorithm on per-frame pixel diffs — a seed/fallback only, never authoritative.
+- **Manual**: user-specified grid — override when Auto and Stills are unavailable or wrong.
+The deployed viewer does NOT detect slides itself; it receives the baked boundary list and navigates accordingly.
 
 ### IPC Architecture (Electron)
 All IPC uses `ipcMain.handle`/`ipcRenderer.invoke` with a typed `IpcResponse<T>` wrapper (`{ success, data?, error? }`).

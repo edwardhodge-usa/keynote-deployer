@@ -1,3 +1,5 @@
+import type { DetectedSlide } from '../utils/slideDetection'
+
 // Keynote metadata from header.json
 export interface KeynoteMetadata {
   title: string
@@ -56,6 +58,7 @@ export interface GifDeployRequest {
   slideCount: number
   title: string
   secureEmbed: boolean
+  slides: DetectedSlide[]   // build-time boundaries, baked into the viewer
 }
 
 // Full pipeline result

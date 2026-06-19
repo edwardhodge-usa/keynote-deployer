@@ -1,7 +1,11 @@
 // Generates a self-contained HTML page for viewing a deployed GIF as slides.
 // Embeds the gifuct-js parser, quiet-run slide detection, and canvas viewer.
 
-export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean): string {
+export function generateGifViewerHtml(
+  gifFilename: string,
+  secureEmbed: boolean,
+  slides: { restFrame: number; holdStart: number; holdEnd: number; transitionFrames: { start: number; end: number } | null }[]
+): string {
   const secureEmbedCss = secureEmbed
     ? 'body { user-select: none; } canvas { pointer-events: none; }'
     : ''
@@ -246,6 +250,9 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
   <script>${gifuctBundle}</script>
 
   <script>
+    // ── Build-time slide boundaries (baked in by gifViewerGenerator.ts) ──
+    var BAKED_SLIDES = ${JSON.stringify(slides)};
+
     // ── Secure embed ──
     ${secureEmbedScript}
 
@@ -307,9 +314,9 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
         });
     })();
 
-    // ── GIF Parser + Slide Detection (single-pass, one-frame-at-a-time) ──
+    // ── GIF Parser — parse structure + build snapshots from BAKED_SLIDES ──
     async function loadAndParseGIF(arrayBuffer) {
-      updateProgress('Scanning frames...', 0);
+      updateProgress('Parsing GIF structure...', 10);
       var gif = gifuct.parseGIF(arrayBuffer);
 
       // Filter to image frames only (each may also carry .gce data)
@@ -327,6 +334,7 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
       // Get frame delay from first frame
       var firstDecoded = gifuct.decompressFrame(imageFrames[0], gct, true);
       var frameDelay = (firstDecoded && firstDecoded.delay) ? firstDecoded.delay : 40;
+      firstDecoded = null; // free patch buffer early — frame 0 composited normally by ensureCompositedTo
 
       // Compositing canvas
       var compCanvas = document.createElement('canvas');
@@ -352,152 +360,44 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
         compCtx.drawImage(tempCanvas, dims.left, dims.top);
       }
 
-      // Scaled-down canvas for memory-efficient diff sampling (~2KB vs ~2.6MB per frame)
-      var sampleW = 32;
-      var sampleH = Math.max(1, Math.round(gifHeight / gifWidth * sampleW));
-      var sampleCanvas = document.createElement('canvas');
-      sampleCanvas.width = sampleW;
-      sampleCanvas.height = sampleH;
-      var sampleCtx = sampleCanvas.getContext('2d');
-      var samplePixelCount = sampleW * sampleH;
+      // ── Boundaries are baked at build time (BAKED_SLIDES). The viewer never detects. ──
+      var slides = BAKED_SLIDES;
+      var slideSnapshots = {}; // restFrame -> ImageData, filled lazily during the composite pass
 
-      // ── Single pass: decompress one-at-a-time, diff, snapshot at slide boundaries ──
-      var diffs = [];
-      var prevSamples = null;
-      var slideSnapshots = {}; // frameIndex → ImageData (keyed to quiet-run start)
-      var QUIET_THRESHOLD = 0.3;
-      var SNAPSHOT_SETTLE = 5;
-      var quietRunStart = null;
-
-      // Composite first frame (already decoded above)
-      compositeDecoded(firstDecoded);
-      firstDecoded = null; // free patch
-
-      // Sample first frame
-      sampleCtx.drawImage(compCanvas, 0, 0, sampleW, sampleH);
-      var sampleData = sampleCtx.getImageData(0, 0, sampleW, sampleH);
-      prevSamples = new Uint8Array(sampleData.data.length);
-      prevSamples.set(sampleData.data);
-      diffs.push(0);
-
-      // Snapshot first frame (always a potential slide start)
-      slideSnapshots[0] = compCtx.getImageData(0, 0, gifWidth, gifHeight);
-      quietRunStart = 0;
-      for (var i = 1; i < totalFrames; i++) {
-        var decoded = gifuct.decompressFrame(imageFrames[i], gct, true);
-        if (!decoded) { diffs.push(0); continue; }
-
-        compositeDecoded(decoded);
-        decoded = null; // free RGBA patch immediately
-
-        // Scaled diff sampling (~2KB allocation instead of ~2.6MB)
-        sampleCtx.drawImage(compCanvas, 0, 0, sampleW, sampleH);
-        sampleData = sampleCtx.getImageData(0, 0, sampleW, sampleH);
-        var currentSamples = sampleData.data;
-
-        var totalDiff = 0;
-        for (var s = 0; s < currentSamples.length; s += 4) {
-          totalDiff += Math.abs(currentSamples[s] - prevSamples[s]);
-          totalDiff += Math.abs(currentSamples[s + 1] - prevSamples[s + 1]);
-          totalDiff += Math.abs(currentSamples[s + 2] - prevSamples[s + 2]);
-        }
-        var currentDiff = totalDiff / (samplePixelCount * 3);
-        diffs.push(currentDiff);
-
-        prevSamples = new Uint8Array(currentSamples.length);
-        prevSamples.set(currentSamples);
-
-        // Track quiet runs and save snapshot after settling period
-        if (currentDiff <= QUIET_THRESHOLD) {
-          if (quietRunStart === null) quietRunStart = i;
-          if (i === quietRunStart + SNAPSHOT_SETTLE) {
-            slideSnapshots[quietRunStart] = compCtx.getImageData(0, 0, gifWidth, gifHeight);
-          }
-        } else {
-          if (quietRunStart !== null && !slideSnapshots[quietRunStart]) {
-            slideSnapshots[quietRunStart] = compCtx.getImageData(0, 0, gifWidth, gifHeight);
-          }
-          quietRunStart = null;
-        }
-
-        if (i % 20 === 0) {
-          updateProgress('Scanning frame ' + (i + 1) + ' of ' + totalFrames + '...', Math.round((i / totalFrames) * 100));
-          await new Promise(function(r) { setTimeout(r, 0); });
+      // Progressive sequential composite (GIF is do-not-dispose + partial-patch: no random access).
+      // Composite frame-by-frame; cache the snapshot when we reach each slide's restFrame.
+      var restFrameSet = {}; slides.forEach(function(s){ restFrameSet[s.restFrame] = true; });
+      var compositedUpTo = -1;
+      function ensureCompositedTo(targetFrame) {
+        for (var i = compositedUpTo + 1; i <= targetFrame; i++) {
+          var decoded = gifuct.decompressFrame(imageFrames[i], gct, true);
+          if (decoded) compositeDecoded(decoded);
+          if (restFrameSet[i]) slideSnapshots[i] = compCtx.getImageData(0, 0, gifWidth, gifHeight);
+          compositedUpTo = i;
         }
       }
 
-      // Handle last quiet run if GIF ends in one
-      if (quietRunStart !== null && !slideSnapshots[quietRunStart]) {
-        slideSnapshots[quietRunStart] = compCtx.getImageData(0, 0, gifWidth, gifHeight);
+      // First paint: composite up to slide 1's restFrame, then background-fill the rest.
+      if (!slides || slides.length === 0) {
+        var noSlidesDiv = document.createElement('div');
+        noSlidesDiv.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui,sans-serif;color:#e5e5e5;background:#0a0a0a;font-size:16px;';
+        noSlidesDiv.textContent = 'No slides to display';
+        document.body.appendChild(noSlidesDiv);
+        return;
       }
-
-      // ── Slide detection (ES5 copy of src/utils/slideDetection.ts — keep in sync) ──
-      var MIN_QUIET_RUN = 8;
-      var allQuietRuns = [];
-      var runStart = null;
-      for (var i = 0; i < diffs.length; i++) {
-        if (diffs[i] <= QUIET_THRESHOLD) {
-          if (runStart === null) runStart = i;
-        } else {
-          if (runStart !== null && (i - runStart) >= MIN_QUIET_RUN) {
-            allQuietRuns.push({ start: runStart, end: i - 1, length: i - runStart });
-          }
-          runStart = null;
-        }
-      }
-      if (runStart !== null && (diffs.length - runStart) >= MIN_QUIET_RUN) {
-        allQuietRuns.push({ start: runStart, end: diffs.length - 1, length: diffs.length - runStart });
-      }
-
-      // Adaptive filtering: remove transition artifact "dark pauses" that
-      // barely meet the minimum but are much shorter than real slide holds.
-      var quietRuns = allQuietRuns;
-      if (allQuietRuns.length >= 3) {
-        var lengths = allQuietRuns.map(function(r) { return r.length; }).sort(function(a, b) { return a - b; });
-        var median = lengths[Math.floor(lengths.length / 2)];
-        var adaptiveMin = Math.max(MIN_QUIET_RUN, Math.floor(median * 0.5));
-        quietRuns = allQuietRuns.filter(function(r) { return r.length >= adaptiveMin; });
-      }
-
-      var slides = [];
-      for (var i = 0; i < quietRuns.length; i++) {
-        var run = quietRuns[i];
-        var prevRun = i > 0 ? quietRuns[i - 1] : null;
-        slides.push({
-          snapshotKey: run.start,
-          restFrame: Math.floor((run.start + run.end) / 2),
-          holdStart: run.start,
-          holdEnd: run.end,
-          transitionFrames: prevRun
-            ? { start: prevRun.end + 1, end: run.start - 1 }
-            : null
-        });
-      }
-
-      if (slides.length === 0) {
-        slides.push({ snapshotKey: 0, restFrame: 0, holdStart: 0, holdEnd: 0, transitionFrames: null });
-      }
-
-      if (slides.length < 2) {
-        showWarning('Could not detect slide boundaries. Try re-exporting with longer auto-advance timing (1-2 seconds).');
-      }
-
-      // Map slides to snapshots (snapshots were saved at quiet-run starts via snapshotKey)
-      var slideFrames = {};
-      for (var i = 0; i < slides.length; i++) {
-        var sk = slides[i].snapshotKey;
-        if (slideSnapshots[sk]) {
-          slideFrames[sk] = slideSnapshots[sk];
-        }
-      }
-
-      // Free unused snapshots (quiet runs that were too short to be slides)
-      slideSnapshots = null;
-
-      console.log('Detected ' + slides.length + ' slides from ' + totalFrames + ' frames (' + Object.keys(slideFrames).length + ' slide snapshots, lazy transition decode)');
+      ensureCompositedTo(slides[0].restFrame);
+      console.log('Loaded ' + slides.length + ' baked slides from ' + totalFrames + ' frames');
+      (function backgroundFill(){
+        if (compositedUpTo >= totalFrames - 1) return;
+        // Pause while a transition is playing to avoid corrupting compCtx mid-animation.
+        if (isPlaying) { setTimeout(backgroundFill, 16); return; }
+        ensureCompositedTo(Math.min(totalFrames - 1, compositedUpTo + 60));
+        setTimeout(backgroundFill, 0);
+      })();
 
       return {
-        slideFrames: slideFrames,
+        slideSnapshots: slideSnapshots,
+        ensureCompositedTo: ensureCompositedTo,
         slides: slides,
         width: gifWidth,
         height: gifHeight,
@@ -548,7 +448,9 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
       var canvas = document.getElementById('slideCanvas');
       var ctx = canvas.getContext('2d');
       var slide = slideMap[index];
-      var snapshot = parsedData.slideFrames[slide.snapshotKey];
+      // Ensure frames up to this slide's restFrame have been composited (progressive fill).
+      parsedData.ensureCompositedTo(slide.restFrame);
+      var snapshot = parsedData.slideSnapshots[slide.restFrame];
       if (snapshot) {
         ctx.putImageData(snapshot, 0, 0);
       }
@@ -586,7 +488,7 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
 
       // Restore compCanvas to current slide's settled snapshot
       var currentSlide = slideMap[currentSlideIndex];
-      var snapshot = parsedData.slideFrames[currentSlide.snapshotKey];
+      var snapshot = parsedData.slideSnapshots[currentSlide.restFrame];
       if (snapshot) {
         parsedData.compCtx.putImageData(snapshot, 0, 0);
       }

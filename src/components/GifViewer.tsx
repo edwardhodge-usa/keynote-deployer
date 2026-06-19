@@ -1,17 +1,22 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { parseGIF, decompressFrames } from 'gifuct-js'
-import { detectSlides, type DetectedSlide } from '../utils/slideDetection'
+import { detectSlides, findQuietRuns, type DetectedSlide } from '../utils/slideDetection'
+import { matchStillsToFrames } from '../utils/stillsMatch'
 import { toKebabCase } from '../utils/strings'
+import SlideBoundaryEditor from './SlideBoundaryEditor'
 
 // ── Types ──
 
 interface ParsedGif {
   frames: ImageBitmap[]
   slides: DetectedSlide[]
+  diffs: number[]
   width: number
   height: number
   frameDelay: number
 }
+
+type BoundarySource = 'auto' | 'manual' | 'stills'
 
 type Phase = 'drop' | 'loading' | 'viewing' | 'confirm' | 'deploying' | 'complete' | 'error'
 
@@ -31,6 +36,11 @@ export default function GifViewer() {
   const [copied, setCopied] = useState<string | null>(null)
   const [gifFilePath, setGifFilePath] = useState('')
   const [gifFileSize, setGifFileSize] = useState(0)
+  const [boundarySource, setBoundarySource] = useState<BoundarySource>('auto')
+  const [manualSlides, setManualSlides] = useState<DetectedSlide[]>([])
+  const [stillsSlides, setStillsSlides] = useState<DetectedSlide[]>([])
+  const [stillsStatus, setStillsStatus] = useState<string>('')
+  const [stillsLoading, setStillsLoading] = useState(false)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const parsedRef = useRef<ParsedGif | null>(null)
@@ -222,7 +232,7 @@ export default function GifViewer() {
 
       console.log(`Detected ${detectedSlides.length} slides from ${frames.length} frames`)
 
-      parsedRef.current = { frames, slides: detectedSlides, width: gifWidth, height: gifHeight, frameDelay }
+      parsedRef.current = { frames, slides: detectedSlides, diffs, width: gifWidth, height: gifHeight, frameDelay }
       setCurrentSlide(0)
       setPhase('viewing')
 
@@ -329,8 +339,138 @@ export default function GifViewer() {
     setCopied(null)
     setGifFilePath('')
     setGifFileSize(0)
+    setBoundarySource('auto')
+    setManualSlides([])
+    setStillsSlides([])
+    setStillsStatus('')
+    setStillsLoading(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }, [clearMessages])
+
+  // ── Stills Source ──
+
+  /**
+   * Downsample an image (already drawn on a canvas) to the same grid as parseGifBuffer uses.
+   * Returns a flat number[] of RGB values at the grid sample points.
+   */
+  const sampleCanvasToGrid = (ctx: CanvasRenderingContext2D, width: number, height: number): number[] => {
+    const gridSize = Math.ceil(Math.sqrt(1000))
+    const stepX = Math.floor(width / gridSize)
+    const stepY = Math.floor(height / gridSize)
+    const imageData = ctx.getImageData(0, 0, width, height)
+    const pixels = imageData.data
+    const samples: number[] = []
+    for (let y = 0; y < height; y += stepY) {
+      for (let x = 0; x < width; x += stepX) {
+        const idx = (y * width + x) * 4
+        samples.push(pixels[idx], pixels[idx + 1], pixels[idx + 2])
+      }
+    }
+    return samples
+  }
+
+  const pickStillsFolder = useCallback(async () => {
+    const parsed = parsedRef.current
+    if (!parsed) return
+
+    setStillsLoading(true)
+    setStillsStatus('Picking folder...')
+
+    try {
+      const res = await window.electron.selectStillsFolder()
+      if (!res.success) {
+        if (res.error !== 'cancelled') setStillsStatus(`Error: ${res.error}`)
+        else setStillsStatus('')
+        setStillsSlides([])
+        setBoundarySource('auto')
+        setStillsLoading(false)
+        return
+      }
+
+      const paths = res.data!
+      setStillsStatus(`Loading ${paths.length} stills...`)
+
+      const { width, height } = parsed
+
+      // Build frame grids from parsed frames (same grid as parseGifBuffer)
+      const frameCanvas = document.createElement('canvas')
+      frameCanvas.width = width
+      frameCanvas.height = height
+      const frameCtx = frameCanvas.getContext('2d')!
+      const frameGrids: number[][] = parsed.frames.map(bmp => {
+        frameCtx.clearRect(0, 0, width, height)
+        frameCtx.drawImage(bmp, 0, 0)
+        return sampleCanvasToGrid(frameCtx, width, height)
+      })
+
+      // Load stills and downsample to same grid
+      const stillCanvas = document.createElement('canvas')
+      stillCanvas.width = width
+      stillCanvas.height = height
+      const stillCtx = stillCanvas.getContext('2d')!
+
+      const stillGrids: number[][] = []
+      for (let i = 0; i < paths.length; i++) {
+        setStillsStatus(`Sampling still ${i + 1} of ${paths.length}...`)
+        await new Promise<void>((resolve, reject) => {
+          const img = new Image()
+          img.onload = () => {
+            stillCtx.clearRect(0, 0, width, height)
+            stillCtx.drawImage(img, 0, 0, width, height)
+            stillGrids.push(sampleCanvasToGrid(stillCtx, width, height))
+            resolve()
+          }
+          img.onerror = () => reject(new Error(`Failed to load still: ${paths[i]}`))
+          // Use file:// protocol for absolute paths in Electron renderer
+          img.src = `file://${paths[i]}`
+        })
+      }
+
+      // Run DP matcher
+      setStillsStatus('Matching stills to frames...')
+      const matchedFrames = matchStillsToFrames(stillGrids, frameGrids)
+
+      // Verify monotonicity
+      const isMonotonic = matchedFrames.every((f, i) => i === 0 || f > matchedFrames[i - 1])
+      if (!isMonotonic) {
+        setStillsStatus(`Warning: non-monotonic match — try switching to Manual`)
+        setStillsSlides([])
+        setBoundarySource('auto')
+        setStillsLoading(false)
+        return
+      }
+
+      // Build DetectedSlide[] by snapping each matched frame to its containing quiet run
+      const runs = findQuietRuns(parsed.diffs)
+      const newSlides: DetectedSlide[] = matchedFrames.map((frameIdx, i) => {
+        const run = runs.find(r => frameIdx >= r.start && frameIdx <= r.end)
+          ?? runs.reduce((best, r) =>
+            Math.abs((r.start + r.end) / 2 - frameIdx) < Math.abs((best.start + best.end) / 2 - frameIdx) ? r : best,
+            runs[0] ?? { start: frameIdx, end: frameIdx, length: 1, lastStart: frameIdx, lastEnd: frameIdx }
+          )
+        const prevSlide = i > 0 ? newSlides[i - 1] : null
+        return {
+          restFrame: frameIdx,
+          holdStart: run?.start ?? frameIdx,
+          holdEnd: run?.end ?? frameIdx,
+          transitionFrames: prevSlide ? { start: prevSlide.holdEnd + 1, end: (run?.start ?? frameIdx) - 1 } : null,
+        }
+      })
+
+      setStillsSlides(newSlides)
+      const autoCount = parsed.slides.length
+      const stillCount = newSlides.length
+      const countNote = stillCount !== autoCount ? ` (Auto detected ${autoCount})` : ''
+      setStillsStatus(`Matched ${stillCount} stills → ${stillCount} stops${countNote}`)
+      setBoundarySource('stills')
+    } catch (err) {
+      setStillsStatus(`Error: ${err instanceof Error ? err.message : String(err)}`)
+      setStillsSlides([])
+      setBoundarySource('auto')
+    } finally {
+      setStillsLoading(false)
+    }
+  }, [])
 
   // ── Deploy Functions ──
 
@@ -343,6 +483,9 @@ export default function GifViewer() {
       ? gifFilePath.split('/').pop()?.replace(/\.gif$/i, '') || 'presentation'
       : 'presentation'
     setProjectName(prefix + toKebabCase(baseName))
+    // Seed manual slides from auto-detected so the editor starts with a reasonable baseline
+    setManualSlides(parsedRef.current?.slides ?? [])
+    setBoundarySource('auto')
     setPhase('confirm')
   }
 
@@ -352,6 +495,18 @@ export default function GifViewer() {
       setPhase('error')
       return
     }
+    // Choose active slide boundary array based on selected source
+    const activeSlides =
+      boundarySource === 'manual' ? manualSlides
+      : boundarySource === 'stills' ? stillsSlides
+      : (parsedRef.current?.slides ?? [])
+
+    if (activeSlides.length === 0) {
+      setDeployError('Add at least one slide stop to deploy.')
+      setPhase('error')
+      return
+    }
+
     setPhase('deploying')
     setDeploySteps([
       { id: 1, label: 'Preparing files', detail: '', status: 'pending' },
@@ -363,9 +518,10 @@ export default function GifViewer() {
     const res = await window.electron.deployGif({
       gifPath: gifFilePath,
       projectName,
-      slideCount: parsedRef.current?.slides.length ?? 0,
+      slideCount: activeSlides.length,
       title: gifFilePath.split('/').pop()?.replace(/\.gif$/i, '') || 'GIF Presentation',
       secureEmbed,
+      slides: activeSlides,
     })
 
     if (res.success && res.data?.success) {
@@ -406,7 +562,8 @@ export default function GifViewer() {
 
   // ── Render ──
 
-  const slides = parsedRef.current?.slides ?? []
+  const autoSlides = parsedRef.current?.slides ?? []
+  const slides = autoSlides
   const slideCount = slides.length
 
   return (
@@ -555,7 +712,11 @@ export default function GifViewer() {
               </div>
               <div className="flex justify-between text-[15px]">
                 <span className="text-gray-500 dark:text-gray-400">Slides</span>
-                <span className="font-medium">{parsedRef.current?.slides.length ?? 0}</span>
+                <span className="font-medium">
+                  {boundarySource === 'manual' ? manualSlides.length
+                   : boundarySource === 'stills' ? stillsSlides.length
+                   : (parsedRef.current?.slides.length ?? 0)}
+                </span>
               </div>
               <div className="flex justify-between text-[15px]">
                 <span className="text-gray-500 dark:text-gray-400">Dimensions</span>
@@ -565,6 +726,65 @@ export default function GifViewer() {
                 <span className="text-gray-500 dark:text-gray-400">Size</span>
                 <span className="font-medium">{(gifFileSize / (1024 * 1024)).toFixed(1)} MB</span>
               </div>
+            </div>
+
+            {/* Boundary-source selector (Task 7) */}
+            <div className="mb-6">
+              <label className="block text-[15px] font-medium mb-2">Slide Boundaries</label>
+              <div className="flex gap-2">
+                {(
+                  [
+                    { value: 'auto', label: 'Auto', desc: 'Detected automatically' },
+                    { value: 'manual', label: 'Manual', desc: 'Edit in grid below' },
+                    { value: 'stills', label: 'Stills', desc: stillsSlides.length > 0 ? `${stillsSlides.length} matched` : 'Pick folder' },
+                  ] as const
+                ).map(({ value, label, desc }) => (
+                  <button
+                    key={value}
+                    onClick={() => value === 'stills' ? pickStillsFolder() : setBoundarySource(value)}
+                    disabled={stillsLoading && value === 'stills'}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-[13px] transition-all ${
+                      boundarySource === value
+                        ? 'border-blue-500 bg-blue-500/10 text-blue-400'
+                        : value === 'stills' && stillsLoading
+                        ? 'border-gray-700 bg-transparent text-gray-500 cursor-wait'
+                        : 'border-gray-600 bg-transparent text-gray-300 hover:border-gray-500'
+                    }`}
+                  >
+                    <div className="font-medium">{label}</div>
+                    <div className="text-[11px] opacity-70 mt-0.5">{desc}</div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Stills status / notice */}
+              {stillsStatus && (
+                <p className={`text-[12px] mt-1.5 ${
+                  stillsStatus.startsWith('Warning') || stillsStatus.startsWith('Error')
+                    ? 'text-yellow-400'
+                    : 'text-gray-400'
+                }`}>
+                  {stillsStatus}
+                  {(stillsStatus.startsWith('Warning') || stillsStatus.startsWith('Error')) && (
+                    <button
+                      className="ml-2 underline text-blue-400"
+                      onClick={() => setBoundarySource('manual')}
+                    >
+                      Switch to Manual
+                    </button>
+                  )}
+                </p>
+              )}
+
+              {/* Manual editor (Task 8) */}
+              {boundarySource === 'manual' && parsedRef.current && (
+                <SlideBoundaryEditor
+                  frames={parsedRef.current.frames}
+                  diffs={parsedRef.current.diffs}
+                  slides={manualSlides}
+                  onChange={setManualSlides}
+                />
+              )}
             </div>
 
             <div className="mb-6">
@@ -592,18 +812,33 @@ export default function GifViewer() {
               Secure Embed — disable downloads, restrict embedding to portal
             </label>
 
-            <div className="flex gap-3">
-              <button onClick={() => setPhase('viewing')} className="btn btn-secondary">
-                Back
-              </button>
-              <button
-                onClick={startDeploy}
-                disabled={!projectName.trim()}
-                className="btn btn-primary flex-1"
-              >
-                Deploy GIF
-              </button>
-            </div>
+            {(() => {
+              const activeCount =
+                boundarySource === 'manual' ? manualSlides.length
+                : boundarySource === 'stills' ? stillsSlides.length
+                : (parsedRef.current?.slides.length ?? 0)
+              return (
+                <>
+                  {activeCount === 0 && (
+                    <p className="text-[12px] text-yellow-400 mb-3">
+                      Add at least one slide stop to deploy.
+                    </p>
+                  )}
+                  <div className="flex gap-3">
+                    <button onClick={() => setPhase('viewing')} className="btn btn-secondary">
+                      Back
+                    </button>
+                    <button
+                      onClick={startDeploy}
+                      disabled={!projectName.trim() || activeCount === 0}
+                      className="btn btn-primary flex-1"
+                    >
+                      Deploy GIF
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
           </div>
         )}
 

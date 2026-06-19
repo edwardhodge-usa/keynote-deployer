@@ -104,6 +104,7 @@ Swift: SwiftUI + SwiftData (macOS 15+, Swift 6.2)
 | GIF deploy confirm phase (project name, secure embed) | Done | N/A | Mirrors HTML deploy confirm flow |
 | GIF deploy progress tracking | Done | N/A | 4-step progress via processing-progress channel |
 | GIF deploy complete (URL copy, Framer embed, open) | Done | N/A | Same UX as HTML deploy complete phase |
+| GIF boundary sources (Auto/Stills/Manual) | Done | N/A | Electron only — boundary detection is build-time, N/A Swift |
 
 ## Summary
 
