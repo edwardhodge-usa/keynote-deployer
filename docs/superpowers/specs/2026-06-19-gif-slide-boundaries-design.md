@@ -24,6 +24,8 @@ tested and rejected:
   same as real slides, while a *real* slide is held only 12 frames.
 - **Frame timing** — Keynote exports a constant 30ms/frame GIF; a hold is just many
   identical frames (no timing signal beyond what diff already sees).
+- **GIF disposal method** — all frames are `disposalType=1` (do-not-dispose), uniform;
+  no boundary signal (verified on the calibration deck, 2026-06-19).
 
 The information "which hold is a real slide" is not recoverable from the rendered GIF
 frames alone. Threshold tuning that hits one deck (e.g. `TRANSITION_PEAK = 0.9` → 39)
@@ -93,11 +95,21 @@ is retained; it improves the seed for decks without held fades.)
 produces). Algorithm:
 - Enumerate images, **natural-sort** by filename (`.001, .002, …` / `1,2,10`), accept
   `jpg/jpeg/png/webp`. The image count `N` is authoritative (it is the slide count).
-- For each still `i` (downsampled to the diff sample grid), find the GIF frame with the
-  minimum mean-abs pixel difference, **constrained monotonic**: frame(i) > frame(i−1).
-  Search frame(i) only in `(frame(i−1), lastFrame]`.
-- The matched frame is `restFrame`; `holdStart/holdEnd` derive from the quiet run
-  containing it (reuse `findQuietRuns` to snap to the surrounding hold);
+- Build a cost matrix `cost[i][f]` = mean-abs pixel difference between still `i`
+  (downsampled to the diff sample grid) and GIF frame `f` (same grid).
+- **Global sequence alignment, NOT greedy.** Find the monotonically-increasing
+  assignment of each still `i` → a frame `f_i` (with `f_i > f_{i-1}`) that minimizes total
+  cost, via a simple O(N·M) DP (N stills ≈ tens, M frames ≈ thousands — cheap). A greedy
+  forward-search is rejected: one early mismatch (a still matching a late transition frame)
+  irreversibly poisons the search space for all later stills.
+- **Cross-domain noise:** GIF frames are 256-color/dithered, stills are 24-bit — mean-abs
+  has a noise floor that a single-bullet change can fall under. Downsampling averages out
+  most dither; if a real high-fidelity deck defeats mean-abs, fall back to a
+  threshold-before-average (count pixels differing > tolerance) or SSIM on the grid. Start
+  with mean-abs; only escalate if a test deck needs it.
+- The matched frame is `restFrame`; snap to the quiet run containing it via `findQuietRuns`
+  for `holdStart/holdEnd`. **If the match lands in a transition (no containing quiet run)**
+  — possible due to dither noise — snap to the *nearest* quiet run rather than failing.
   `transitionFrames` = the gap from the previous slide's `holdEnd`.
 - Produces exactly `N` slides, in order, for any deck.
 
@@ -106,6 +118,9 @@ produces). Algorithm:
 - **Remove** a false stop (✕ on a thumbnail).
 - **Insert** a missing stop: scrub the GIF to a frame, "insert stop here" → a new
   `DetectedSlide` at that frame (hold range snapped via `findQuietRuns`; transition recomputed).
+  Scrubbing a multi-thousand-frame GIF needs **frame-stepping controls** (←/→ nudge ±1
+  frame, plus the range slider) for precise placement — a bare slider can't hit an exact
+  boundary frame.
 - Live slide count. "Deploy" uses the edited array.
 
 ### 3. Generator — bake boundaries, drop client detection
@@ -113,9 +128,20 @@ produces). Algorithm:
 The emitted viewer:
 - No longer runs the diff/quiet-run/merge detection client-side.
 - Embeds `slides` as a JSON literal.
-- Still decodes the GIF for rendering, but **lazy-decodes** the `restFrame`s on demand
-  (and transition ranges during playback) instead of a full upfront scan.
 - Nav (Next/Prev/dots/keyboard) and transition playback consume the baked `slides`.
+
+**Decode reality (do not random-access).** The GIF is `disposalType=1` (do-not-dispose)
+with delta-encoded partial-patch frames (verified: ~95% partial), so frame N **cannot**
+be decoded without compositing frames 0→N. The viewer therefore does a **single
+sequential composite pass**, progressively (in the background after first paint), caching
+each baked `restFrame` snapshot + transition range as it passes them. Showing slide 1 is
+immediate (composite 0→restFrame₁); jumping ahead to an un-cached slide composites up to
+its `restFrame` once (brief one-time cost) or waits for the background pass to reach it.
+- **Perf claim, corrected:** removing client-side detection drops the diff-loop and the
+  snapshot-every-quiet-run work, but the decode/composite pass remains and dominates load
+  time. The real wins are **determinism + correctness** (baked boundaries) and a *modest*
+  load reduction — NOT a dramatic speedup. Do not promise the slow-parse problem is
+  "solved"; it is reduced. (A true fix for slow raw-export decode is out of scope here.)
 
 `gif-slide-viewer.html` (standalone) and `GifViewer.tsx` (in-app preview) consume the
 same `DetectedSlide[]`; the in-app preview already does.
@@ -177,5 +203,12 @@ Deployed viewer: play GIF, snap Next/Prev to baked slides (no detection)
 ## Notes
 
 - Keep the build-merge commit on this branch; this spec builds on it.
-- The deployed viewer's removal of client-side detection also resolves the slow-parse
-  UX issue observed on raw (unoptimized) Keynote exports.
+- The deployed viewer's removal of client-side detection *reduces* (does not eliminate)
+  the slow-parse cost on raw (unoptimized) Keynote exports — the decode/composite pass
+  remains.
+- **Build sequencing (both ship; order matters):** Manual (D) is the *definitive* safety
+  net — it solves any deck by hand and depends only on the build-time-boundary + grid UI.
+  Stills (C) is the *automation* layer and carries a new matching-bug surface. The plan
+  should land the architecture + Manual first (always-correct fallback exists), then Stills
+  on top. Both are in scope per the requirement to choose per deck; this is ordering, not
+  descoping.
