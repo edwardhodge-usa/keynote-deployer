@@ -381,6 +381,8 @@ export default function GifViewer() {
       if (!res.success) {
         if (res.error !== 'cancelled') setStillsStatus(`Error: ${res.error}`)
         else setStillsStatus('')
+        setStillsSlides([])
+        setBoundarySource('auto')
         setStillsLoading(false)
         return
       }
@@ -432,6 +434,8 @@ export default function GifViewer() {
       const isMonotonic = matchedFrames.every((f, i) => i === 0 || f > matchedFrames[i - 1])
       if (!isMonotonic) {
         setStillsStatus(`Warning: non-monotonic match — try switching to Manual`)
+        setStillsSlides([])
+        setBoundarySource('auto')
         setStillsLoading(false)
         return
       }
@@ -461,6 +465,8 @@ export default function GifViewer() {
       setBoundarySource('stills')
     } catch (err) {
       setStillsStatus(`Error: ${err instanceof Error ? err.message : String(err)}`)
+      setStillsSlides([])
+      setBoundarySource('auto')
     } finally {
       setStillsLoading(false)
     }
