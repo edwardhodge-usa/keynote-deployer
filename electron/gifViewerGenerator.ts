@@ -334,7 +334,7 @@ export function generateGifViewerHtml(
       // Get frame delay from first frame
       var firstDecoded = gifuct.decompressFrame(imageFrames[0], gct, true);
       var frameDelay = (firstDecoded && firstDecoded.delay) ? firstDecoded.delay : 40;
-      firstDecoded = null; // free patch — will be recomposited below
+      firstDecoded = null; // free patch buffer early — frame 0 composited normally by ensureCompositedTo
 
       // Compositing canvas
       var compCanvas = document.createElement('canvas');
@@ -382,6 +382,8 @@ export function generateGifViewerHtml(
       console.log('Loaded ' + slides.length + ' baked slides from ' + totalFrames + ' frames');
       (function backgroundFill(){
         if (compositedUpTo >= totalFrames - 1) return;
+        // Pause while a transition is playing to avoid corrupting compCtx mid-animation.
+        if (isPlaying) { setTimeout(backgroundFill, 16); return; }
         ensureCompositedTo(Math.min(totalFrames - 1, compositedUpTo + 60));
         setTimeout(backgroundFill, 0);
       })();
