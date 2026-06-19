@@ -1,7 +1,11 @@
 // Generates a self-contained HTML page for viewing a deployed GIF as slides.
 // Embeds the gifuct-js parser, quiet-run slide detection, and canvas viewer.
 
-export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean): string {
+export function generateGifViewerHtml(
+  gifFilename: string,
+  secureEmbed: boolean,
+  slides: { restFrame: number; holdStart: number; holdEnd: number; transitionFrames: { start: number; end: number } | null }[]
+): string {
   const secureEmbedCss = secureEmbed
     ? 'body { user-select: none; } canvas { pointer-events: none; }'
     : ''
@@ -246,6 +250,9 @@ export function generateGifViewerHtml(gifFilename: string, secureEmbed: boolean)
   <script>${gifuctBundle}</script>
 
   <script>
+    // ── Build-time slide boundaries (baked in by gifViewerGenerator.ts) ──
+    var BAKED_SLIDES = ${JSON.stringify(slides)};
+
     // ── Secure embed ──
     ${secureEmbedScript}
 

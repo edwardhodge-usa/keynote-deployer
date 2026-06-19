@@ -451,7 +451,7 @@ ipcMain.handle('deploy-gif', async (event, request: GifDeployRequest) => {
     await fs.copyFile(request.gifPath, path.join(tempFolder, gifFilename))
 
     // Generate index.html viewer
-    const indexHtml = generateGifViewerHtml(gifFilename, request.secureEmbed)
+    const indexHtml = generateGifViewerHtml(gifFilename, request.secureEmbed, request.slides)
     await fs.writeFile(path.join(tempFolder, 'index.html'), indexHtml, 'utf-8')
 
     sendProgress(1, 'Preparing files', 'Files ready', 'completed')
