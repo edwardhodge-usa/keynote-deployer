@@ -2,16 +2,20 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { parseGIF, decompressFrames } from 'gifuct-js'
 import { detectSlides, type DetectedSlide } from '../utils/slideDetection'
 import { toKebabCase } from '../utils/strings'
+import SlideBoundaryEditor from './SlideBoundaryEditor'
 
 // ── Types ──
 
 interface ParsedGif {
   frames: ImageBitmap[]
   slides: DetectedSlide[]
+  diffs: number[]
   width: number
   height: number
   frameDelay: number
 }
+
+type BoundarySource = 'auto' | 'manual' | 'stills'
 
 type Phase = 'drop' | 'loading' | 'viewing' | 'confirm' | 'deploying' | 'complete' | 'error'
 
@@ -31,6 +35,8 @@ export default function GifViewer() {
   const [copied, setCopied] = useState<string | null>(null)
   const [gifFilePath, setGifFilePath] = useState('')
   const [gifFileSize, setGifFileSize] = useState(0)
+  const [boundarySource, setBoundarySource] = useState<BoundarySource>('auto')
+  const [manualSlides, setManualSlides] = useState<DetectedSlide[]>([])
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const parsedRef = useRef<ParsedGif | null>(null)
@@ -222,7 +228,7 @@ export default function GifViewer() {
 
       console.log(`Detected ${detectedSlides.length} slides from ${frames.length} frames`)
 
-      parsedRef.current = { frames, slides: detectedSlides, width: gifWidth, height: gifHeight, frameDelay }
+      parsedRef.current = { frames, slides: detectedSlides, diffs, width: gifWidth, height: gifHeight, frameDelay }
       setCurrentSlide(0)
       setPhase('viewing')
 
@@ -329,6 +335,8 @@ export default function GifViewer() {
     setCopied(null)
     setGifFilePath('')
     setGifFileSize(0)
+    setBoundarySource('auto')
+    setManualSlides([])
     if (fileInputRef.current) fileInputRef.current.value = ''
   }, [clearMessages])
 
@@ -343,6 +351,9 @@ export default function GifViewer() {
       ? gifFilePath.split('/').pop()?.replace(/\.gif$/i, '') || 'presentation'
       : 'presentation'
     setProjectName(prefix + toKebabCase(baseName))
+    // Seed manual slides from auto-detected so the editor starts with a reasonable baseline
+    setManualSlides(parsedRef.current?.slides ?? [])
+    setBoundarySource('auto')
     setPhase('confirm')
   }
 
@@ -352,6 +363,9 @@ export default function GifViewer() {
       setPhase('error')
       return
     }
+    // Choose active slide boundary array based on selected source
+    const activeSlides = boundarySource === 'manual' ? manualSlides : (parsedRef.current?.slides ?? [])
+
     setPhase('deploying')
     setDeploySteps([
       { id: 1, label: 'Preparing files', detail: '', status: 'pending' },
@@ -363,10 +377,10 @@ export default function GifViewer() {
     const res = await window.electron.deployGif({
       gifPath: gifFilePath,
       projectName,
-      slideCount: parsedRef.current?.slides.length ?? 0,
+      slideCount: activeSlides.length,
       title: gifFilePath.split('/').pop()?.replace(/\.gif$/i, '') || 'GIF Presentation',
       secureEmbed,
-      slides: parsedRef.current?.slides ?? [],
+      slides: activeSlides,
     })
 
     if (res.success && res.data?.success) {
@@ -407,7 +421,8 @@ export default function GifViewer() {
 
   // ── Render ──
 
-  const slides = parsedRef.current?.slides ?? []
+  const autoSlides = parsedRef.current?.slides ?? []
+  const slides = autoSlides
   const slideCount = slides.length
 
   return (
@@ -556,7 +571,9 @@ export default function GifViewer() {
               </div>
               <div className="flex justify-between text-[15px]">
                 <span className="text-gray-500 dark:text-gray-400">Slides</span>
-                <span className="font-medium">{parsedRef.current?.slides.length ?? 0}</span>
+                <span className="font-medium">
+                  {boundarySource === 'manual' ? manualSlides.length : (parsedRef.current?.slides.length ?? 0)}
+                </span>
               </div>
               <div className="flex justify-between text-[15px]">
                 <span className="text-gray-500 dark:text-gray-400">Dimensions</span>
@@ -566,6 +583,46 @@ export default function GifViewer() {
                 <span className="text-gray-500 dark:text-gray-400">Size</span>
                 <span className="font-medium">{(gifFileSize / (1024 * 1024)).toFixed(1)} MB</span>
               </div>
+            </div>
+
+            {/* Boundary-source selector (Task 7) */}
+            <div className="mb-6">
+              <label className="block text-[15px] font-medium mb-2">Slide Boundaries</label>
+              <div className="flex gap-2">
+                {(
+                  [
+                    { value: 'auto', label: 'Auto', desc: 'Detected automatically' },
+                    { value: 'manual', label: 'Manual', desc: 'Edit in grid below' },
+                    { value: 'stills', label: 'Stills', desc: 'Coming soon' },
+                  ] as const
+                ).map(({ value, label, desc }) => (
+                  <button
+                    key={value}
+                    onClick={() => setBoundarySource(value)}
+                    disabled={value === 'stills'}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-[13px] transition-all ${
+                      boundarySource === value
+                        ? 'border-blue-500 bg-blue-500/10 text-blue-400'
+                        : value === 'stills'
+                        ? 'border-gray-700 bg-transparent text-gray-600 cursor-not-allowed'
+                        : 'border-gray-600 bg-transparent text-gray-300 hover:border-gray-500'
+                    }`}
+                  >
+                    <div className="font-medium">{label}</div>
+                    <div className="text-[11px] opacity-70 mt-0.5">{desc}</div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Manual editor (Task 8) */}
+              {boundarySource === 'manual' && parsedRef.current && (
+                <SlideBoundaryEditor
+                  frames={parsedRef.current.frames}
+                  diffs={parsedRef.current.diffs}
+                  slides={manualSlides}
+                  onChange={setManualSlides}
+                />
+              )}
             </div>
 
             <div className="mb-6">
