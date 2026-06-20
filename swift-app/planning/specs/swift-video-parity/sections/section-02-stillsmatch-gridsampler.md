@@ -159,3 +159,26 @@ Notes on what I found while writing the section:
 - The TS `matchStillsToFrames` uses `<=` for the prior-frame tie-break (largest prior index wins on ties) and strict `<` for the end-state scan (first minimal end frame wins). These two comparisons are parity-load-bearing and I called them out explicitly so the implementer does not "clean them up" and break TS parity.
 - `GridSampler` does **not** exist on `main` (Glob found no `GridSampler.swift`); it lives only on the `feat/gif-deploy-swift` branch and used a different grid for GIF. The section directs using the Electron *video* sampler's 32×18×3 = 1728 grid, not the GIF grid.
 - The `M < N` behavior is genuinely under-specified in the source plan ("clamp/throw") — I flagged it as an implementer decision that must be documented and test-locked rather than left as a silent crash on `back == -1`.
+
+---
+
+## Implementation Record (what was actually built)
+
+**Files created (all as planned, no path deviations):**
+- `swift-app/Sources/Services/StillsMatch.swift` — `StillsMatch` enum (`meanAbs`, `naturalSort`, `matchStillsToFrames`) + `StillsMatchError` enum.
+- `swift-app/Sources/Services/GridSampler.swift` — `GridSampler` enum (`sample`, named `width`/`height`/`channels`/`valueCount` constants).
+- `swift-app/Tests/StillsMatchTests.swift` — 13 `@Test`s.
+- `swift-app/Tests/GridSamplerTests.swift` — 4 `@Test`s.
+
+**Decisions made:**
+- **`M < N` → throws** `StillsMatchError.tooFewFrames(stills:frames:)` (chose throw over clamp; deterministic, test-locked by `matchTooFewFramesThrows`). The TS oracle returns garbage (`[null,null,-1]`) here, captured via `node`.
+- **`naturalSort` via `String.compare(options: .numeric)` (A10)** — verified identical to the TS `naturalSort` order on the uniform `slide-0NN.jpeg` set (small + full-39 parity tests). Documented fallback to a TS-key port if `.numeric` ever diverges on exotic names.
+- **DP tie-break parity** locked by `matchTieBreakLargestPriorWins` using the fixture `([[0],[0],[10]], [[0],[0],[0],[10],[10]]) -> [1,2,3]`, which yields `[0,1,3]` under `<` — so the test genuinely fails if the `<=` is "cleaned up".
+- **Oracle outputs hard-coded** from `node` runs of the verbatim TS `matchStillsToFrames`: clean monotonic `[0,2,4]`, single-still `[2]`, equal-counts `[0,1]`, all-equal-tie `[0,1]`, meanAbs `2`.
+
+**Code-review fixes applied** (see `implementation/code_review/section-02-interview.md`):
+- Added `StillsMatchError.noValidAssignment` + a defensive `guard f >= 0` in the backtrack (structurally unreachable under `M>=N`, but guards against a future-refactor negative-index trap where the TS oracle would only warn).
+- Added an `- Important:` doc-comment on `matchStillsToFrames`: **Section 06 (`VideoTimestampDeriver`) must CATCH the throw and degrade gracefully** (mirror the TS `GifViewer.tsx` non-monotonic fallback → `auto` boundary source), not propagate it. Integration contract for Section 06.
+- `GridSampler` context switched `premultipliedLast` → `noneSkipLast` (premultiply-free RGB read, matches the Electron canvas sampler; no-op for opaque images but avoids a latent alpha-scaling bug).
+
+**Verification:** `cd swift-app && xcodegen generate && xcodebuild test -scheme KeynoteDeployer -destination "platform=macOS" -quiet` → exit 0, **21/21 tests pass** (4 Section-01 + 13 StillsMatch + 4 GridSampler).
