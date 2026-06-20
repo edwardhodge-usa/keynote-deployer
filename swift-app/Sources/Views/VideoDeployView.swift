@@ -3,6 +3,25 @@ import SwiftData
 import AVKit
 import UniformTypeIdentifiers
 
+/// AppKit `AVPlayerView` wrapped for SwiftUI. Used instead of SwiftUI's
+/// `AVKit.VideoPlayer`, which fatal-errors during `_AVKit_SwiftUI` generic-metadata
+/// instantiation on macOS 26 (crashes the confirm phase the moment it renders).
+struct VideoPreview: NSViewRepresentable {
+    let player: AVPlayer
+
+    func makeNSView(context: Context) -> AVPlayerView {
+        let view = AVPlayerView()
+        view.player = player
+        view.controlsStyle = .inline
+        view.videoGravity = .resizeAspect
+        return view
+    }
+
+    func updateNSView(_ nsView: AVPlayerView, context: Context) {
+        if nsView.player !== player { nsView.player = player }
+    }
+}
+
 /// Pure, SwiftUI-free logic for `VideoDeployView` — extracted so it's unit-testable
 /// offline (section-08 tests call these directly).
 enum VideoDeployLogic {
@@ -152,7 +171,10 @@ struct VideoDeployView: View {
                 .font(.title2.weight(.semibold))
 
             if let player {
-                VideoPlayer(player: player)
+                // AppKit AVPlayerView (not SwiftUI's AVKit `VideoPlayer`): the
+                // SwiftUI VideoPlayer wrapper fatal-errors in _AVKit_SwiftUI generic
+                // metadata instantiation on macOS 26, crashing the confirm phase.
+                VideoPreview(player: player)
                     .frame(height: 200)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
             }
