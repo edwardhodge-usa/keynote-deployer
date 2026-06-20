@@ -122,6 +122,7 @@ struct VideoDeployerTests {
         #expect(result.projectName == "my-deck")
         #expect(result.title == "My Deck")
         #expect(result.slideCount == 2)               // == stillPaths.count
+        #expect(result.width == 1920 && result.height == 1080) // probed dims (for the embed ratio)
         #expect(result.folderPath == Self.videoURL.path) // SOURCE video path, not temp dir
 
         // Exactly 4 distinct steps reached .completed (ids 1–4).

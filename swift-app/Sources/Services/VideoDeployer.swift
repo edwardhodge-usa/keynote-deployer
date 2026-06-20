@@ -100,6 +100,8 @@ enum VideoDeployer {
             projectName: request.projectName,
             title: request.title,
             slideCount: analysis.slideCount,
+            width: analysis.width,
+            height: analysis.height,
             folderPath: request.videoPath)
     }
 }
@@ -162,6 +164,10 @@ struct VideoDeployResult: Sendable {
     let projectName: String
     let title: String
     let slideCount: Int
+    /// Probed video dimensions — the View uses these for the responsive Framer
+    /// embed's aspect ratio (no separate, racy re-probe at the complete phase).
+    let width: Int
+    let height: Int
     /// The SOURCE video path (not the deleted temp dir) — the View persists this
     /// as `HistoryEntry.folderPath`.
     let folderPath: String

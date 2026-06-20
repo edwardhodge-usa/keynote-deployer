@@ -251,4 +251,23 @@ A few load-bearing notes I surfaced while writing this section, for the implemen
 - **The Swift source tree is not on this branch.** The current checkout (`main`) has no `swift-app/Sources/**/*.swift` files visible — the video work lives on a feature branch. Before editing, read the actual `AppSettings`, `HistoryEntry`, `ProcessingStep`, `NavigationTab`, `ContentView`, `SidebarView`, and the existing HTML `DeployView` on that branch and mirror their exact property names, history-write shape, kebab/prefix helper, `NSPasteboard` call, and auto-copy-setting check — this section deliberately defers those exact identifiers to the live source rather than guessing.
 - **History persistence + auto-copy live in the View, not the deployer** (per section-07): `folderPath = result.folderPath` (source video path), `fixesApplied = 0`.
 
+---
+
+## As-built (deviations from plan)
+
+Files: `Sources/Views/VideoDeployView.swift` (+ `VideoDeployLogic`), `Tests/VideoDeployViewTests.swift`, `Sources/Models/NavigationTab.swift` (+`.video`), `Sources/Views/ContentView.swift` (+`case .video`). 64/64 tests green, Swift 6 clean. No GIF tab existed on this branch — nothing to remove; `SidebarView` auto-derives rows from `NavigationTab.allCases`, so the `.video` row appears with no SidebarView edit.
+
+**Framer embed model.** The plan suggested `padding-top = height/width*100%`. The live byte-target is `GifViewer.tsx` (the video path supersedes GIF), which uses `aspect-ratio:${w}/${h}`. `framerEmbed` mirrors that exactly (raw probed w/h, not 16/9). DeployView's bare-iframe embed was correctly NOT mirrored here.
+
+**Review-driven fixes (section-08-review/interview):**
+- **C2 / cross-section amendment:** `VideoDeployResult` (section-07) gained `width`/`height`, populated from `analysis`. The complete-phase embed sources the ratio from `result.width/height` — not a racy re-probe with a fabricated 1920×1080 fallback. Section-07's happy-path test asserts the new dims. (Additive fields; section-07 tests unaffected.)
+- **C1:** AVPlayer is a stored `@State` built once in `acceptVideo` (was rebuilt every body render → playback reset/stutter).
+- **I1:** Cancel returns to `.confirm` (coherent state); `acceptVideo` clears `stillPaths`/`result` so a new video can't inherit the old deck's stills.
+- **I3:** m4v picker type via `UTType(filenameExtension: "m4v")` (the `UTType("public.m4v")` literal is frequently nil).
+- **I4:** Vercel-token pre-check in `startDeploy` (actionable error, mirrors DeployView).
+- **I5:** Settings loaded once in `acceptVideo`, passed to `probeDimensions`; `startDeploy` keeps its own fresh deploy-time read (DeployView pattern).
+- **M1/M3/M4:** empty-stills warning rendered in `confirmPhase`; history/title use the filename without extension; fps clamped to `max(1, …)`.
+
+**Deferred to the section-09 live gate:** the Peekaboo runtime walk (Deploy Video tab visible, drop→confirm→deploy→complete, HistoryEntry written, clipboard). M2 (does `onDisappear` cancel fire on tab switch) + M5 (instant Cancel feedback) are runtime behaviors to confirm there.
+
 Relevant absolute paths: the section will be written to `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/planning/specs/swift-video-parity/sections/section-08-video-deploy-view.md`; source-of-truth plan files are `claude-plan.md` (§5.8/§5.9/§10 amendments A5/A8) and `claude-plan-tdd.md` (§Section 8) in the same `swift-video-parity/` directory.
