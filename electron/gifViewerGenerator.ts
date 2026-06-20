@@ -214,13 +214,20 @@ export function generateGifViewerHtml(
       /* Center the deck + its controls together as one group so the controls
          hug the bottom of the deck instead of being pinned to the window edge
          with dead space between. gap ties the two; the 12px top/bottom keeps
-         a small breathing margin at extreme sizes. */
+         a small breathing margin at extreme sizes.
+         - "safe center": if the group is taller than the viewport (e.g. a
+           many-slide deck whose dot strip wraps to several rows), fall back to
+           top-alignment instead of centering — centering would clip the TOP of
+           the deck under overflow:hidden, which is unrecoverable (no scroll).
+         - "background: transparent": let the host site (Framer) background show
+           through the letterbox around the deck — no black fill. */
       body.in-iframe {
         height: 100vh;
         overflow: hidden;
-        justify-content: center;
+        justify-content: safe center;
         gap: 14px;
         padding: 12px 0;
+        background: transparent;
       }
 
       body.in-iframe.viewer-ready #canvasContainer {
@@ -238,13 +245,19 @@ export function generateGifViewerHtml(
       /* Scale to fit the box at the GIF's true aspect ratio (no 1080-cap, no
          hardcoded 1080/608 — width/height:auto means the canvas's own backing
          dimensions drive the ratio, so non-16:9 decks don't distort).
-         max-height reserves room for the controls row so the group stays
-         centered without the canvas overlapping it. */
+         max-height:100% (NOT a calc(100vh - reserve)) means the canvas sizes
+         against its flex parent's RESOLVED height: #viewer (controls) takes its
+         natural height first as flex:0 0, then #canvasContainer (flex:0 1,
+         min-height:0) shrinks to whatever's left and the canvas fits inside it.
+         So the controls can be ANY height (wrapped dot rows, scaled buttons)
+         and the canvas never overlaps them — no hardcoded pixel reserve to get
+         wrong. object-fit:contain keeps the ratio if the box is ever clamped. */
       body.in-iframe #slideCanvas {
         width: auto;
         height: auto;
         max-width: 100%;
-        max-height: calc(100vh - 110px);
+        max-height: 100%;
+        object-fit: contain;
         aspect-ratio: auto;
         border: none;
         border-radius: 0;
@@ -278,6 +291,22 @@ export function generateGifViewerHtml(
         height: clamp(8px, 0.9vw, 11px);
         min-width: clamp(8px, 0.9vw, 11px);
         margin: 0 clamp(2px, 0.25vw, 4px);
+      }
+      /* Many-slide decks wrap the dot strip; base gap is 0, so give wrapped
+         rows vertical breathing room. */
+      body.in-iframe #dotStrip { row-gap: 6px; }
+
+      /* The loading overlay defaults to a near-opaque black sheet
+         (rgba(10,10,10,0.92)) — in a transparent embed that would flash a black
+         rectangle over the host site while the GIF parses. Make the overlay
+         itself transparent and pill just the text + progress bar so the site
+         background stays visible during load. */
+      body.in-iframe #loading { background: transparent; }
+      body.in-iframe #loadingText {
+        background: rgba(10, 10, 10, 0.82);
+        padding: 8px 16px;
+        border-radius: 8px;
+        backdrop-filter: blur(4px);
       }
     }
 
