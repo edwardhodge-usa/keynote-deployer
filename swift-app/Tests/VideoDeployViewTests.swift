@@ -42,6 +42,16 @@ struct VideoDeployViewTests {
         #expect(VideoDeployLogic.canDeploy(videoPath: "/v.mp4", stillCount: 3, projectName: "deck") == true)
     }
 
+    // Deck-type inference for Projects "Update" routing: video history folderPath
+    // is a video file; HTML history folderPath is a folder.
+    @Test func isVideoDeckByFolderPathExtension() {
+        #expect(VideoDeployLogic.isVideoDeck(folderPath: "/decks/ILS Quals.mp4"))
+        #expect(VideoDeployLogic.isVideoDeck(folderPath: "/decks/deck.MOV"))   // case-insensitive
+        #expect(VideoDeployLogic.isVideoDeck(folderPath: "/decks/deck.m4v"))
+        #expect(VideoDeployLogic.isVideoDeck(folderPath: "/Users/x/Keynote Export") == false)  // HTML folder
+        #expect(VideoDeployLogic.isVideoDeck(folderPath: "") == false)
+    }
+
     // Framer embed uses the PROBED aspect ratio (raw width/height), mirroring the
     // Electron GifViewer.tsx embed: `aspect-ratio:${w}/${h}` (NOT a hardcoded 16/9).
     @Test func framerEmbedUsesProbedAspectRatio() {

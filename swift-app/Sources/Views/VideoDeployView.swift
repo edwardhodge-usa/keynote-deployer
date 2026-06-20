@@ -60,6 +60,13 @@ enum VideoDeployLogic {
     static func humanSize(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
+
+    /// A deploy is a VIDEO deck (vs an HTML export) iff its history `folderPath`
+    /// points at a video file. Used to route the Projects "Update" action to the
+    /// right deploy flow.
+    static func isVideoDeck(folderPath: String) -> Bool {
+        ["mp4", "mov", "m4v"].contains((folderPath as NSString).pathExtension.lowercased())
+    }
 }
 
 /// The video-deck deploy front door: drop an H.264 video + a per-slide stills
@@ -67,6 +74,11 @@ enum VideoDeployLogic {
 /// video path and the existing Swift `DeployView` conventions (drop zone,
 /// NSOpenPanel, settings reads, HistoryEntry persistence, NSPasteboard auto-copy).
 struct VideoDeployView: View {
+    /// When set (from a Projects "Update"), the deploy targets this existing Vercel
+    /// project name instead of deriving a fresh one from the filename.
+    var presetProjectName: String? = nil
+    var onProjectUsed: (() -> Void)? = nil
+
     @Environment(\.modelContext) private var modelContext
 
     enum Phase { case drop, confirm, deploying, complete, error }
@@ -393,7 +405,9 @@ struct VideoDeployView: View {
         player = AVPlayer(url: url)
 
         let settings = (try? FileOperations.loadSettings()) ?? .default
-        projectName = VideoDeployLogic.projectName(prefix: settings.projectNamePrefix, filename: url.lastPathComponent)
+        // An "Update" from Projects targets the existing project; otherwise derive
+        // a fresh name from the filename.
+        projectName = presetProjectName ?? VideoDeployLogic.projectName(prefix: settings.projectNamePrefix, filename: url.lastPathComponent)
         secureEmbed = settings.secureEmbed
 
         phase = .confirm
@@ -517,6 +531,7 @@ struct VideoDeployView: View {
 
         result = r
         phase = .complete
+        onProjectUsed?()   // clear any Projects "Update" selection that seeded this deploy
     }
 
     private func copyText(_ text: String, label: String) {

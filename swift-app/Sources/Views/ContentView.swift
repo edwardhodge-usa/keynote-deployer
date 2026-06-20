@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var selectedTab: NavigationTab = .deploy
     @State private var selectedProject: String?
+    @State private var selectedVideoProject: String?
 
     var body: some View {
         NavigationSplitView {
@@ -15,12 +16,21 @@ struct ContentView: View {
                     onProjectUsed: { selectedProject = nil }
                 )
             case .video:
-                VideoDeployView()
+                VideoDeployView(
+                    presetProjectName: selectedVideoProject,
+                    onProjectUsed: { selectedVideoProject = nil }
+                )
             case .projects:
-                ProjectsView(onSelectProject: { name in
-                    selectedProject = name
-                    selectedTab = .deploy
-                })
+                ProjectsView(
+                    onSelectProject: { name in
+                        selectedProject = name
+                        selectedTab = .deploy
+                    },
+                    onSelectVideoProject: { name in
+                        selectedVideoProject = name
+                        selectedTab = .video
+                    }
+                )
             case .history:
                 HistoryView()
             case .settings:

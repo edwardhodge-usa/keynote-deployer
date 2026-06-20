@@ -44,7 +44,11 @@ actor VercelAPI {
     }
 
     /// Fetch all Vercel projects, filtered to only those in local history.
-    func fetchProjects(deployedNames: Set<String>) async throws -> [VercelProject] {
+    /// Fetch Vercel projects. When `deployedNames` is non-nil, restrict to projects
+    /// this app has deployed (cross-referenced with local history); pass `nil` to
+    /// return ALL team projects (the "Show all" path so deployments not in local
+    /// history can still be seen + deleted).
+    func fetchProjects(deployedNames: Set<String>?) async throws -> [VercelProject] {
         let url = URL(string: "https://api.vercel.com/v9/projects?teamId=\(teamId)&limit=100")!
         var req = URLRequest(url: url)
         req.allHTTPHeaderFields = authHeaders
@@ -56,6 +60,7 @@ actor VercelAPI {
         }
 
         let response = try JSONDecoder().decode(ProjectsResponse.self, from: data)
+        guard let deployedNames else { return response.projects }
         return response.projects.filter { deployedNames.contains($0.name) }
     }
 

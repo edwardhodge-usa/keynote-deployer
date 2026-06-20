@@ -3,6 +3,7 @@ import SwiftData
 
 struct ProjectsView: View {
     let onSelectProject: (String) -> Void
+    var onSelectVideoProject: ((String) -> Void)? = nil
 
     @Query(sort: \HistoryEntry.date, order: .reverse) private var historyEntries: [HistoryEntry]
 
@@ -12,6 +13,9 @@ struct ProjectsView: View {
     @State private var confirmingDelete: String?
     @State private var deletingId: String?
     @State private var copiedId: String?
+    /// When on, list ALL Vercel projects (not just ones in local deploy history) so
+    /// deployments made elsewhere can still be seen + deleted.
+    @AppStorage("projectsShowAll") private var showAll = false
 
     var body: some View {
         Group {
@@ -37,6 +41,12 @@ struct ProjectsView: View {
         }
         .navigationTitle("Projects")
         .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Toggle("Show all", isOn: $showAll)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .help("List every Vercel project, not just ones deployed from this app")
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button("Refresh", systemImage: "arrow.clockwise") {
                     Task { await loadProjects() }
@@ -45,6 +55,7 @@ struct ProjectsView: View {
             }
         }
         .task { await loadProjects() }
+        .onChange(of: showAll) { _, _ in Task { await loadProjects() } }
     }
 
     private var projectList: some View {
@@ -55,7 +66,7 @@ struct ProjectsView: View {
                     isConfirmingDelete: confirmingDelete == project.id,
                     isDeleting: deletingId == project.id,
                     copiedId: copiedId,
-                    onUpdate: { onSelectProject(project.name) },
+                    onUpdate: { routeUpdate(project) },
                     onCopyUrl: { copyUrl(for: project) },
                     onRequestDelete: { confirmingDelete = project.id },
                     onCancelDelete: { confirmingDelete = nil },
@@ -79,8 +90,9 @@ struct ProjectsView: View {
 
             let api = VercelAPI(token: settings.vercelToken, teamId: settings.vercelTeamId)
 
-            // Filter to only projects deployed by Keynote Deployer
-            let deployedNames = Set(historyEntries.map(\.projectName))
+            // Default: only projects deployed by Keynote Deployer (cross-referenced
+            // with local history). "Show all" passes nil to list every team project.
+            let deployedNames: Set<String>? = showAll ? nil : Set(historyEntries.map(\.projectName))
             let fetched = try await api.fetchProjects(deployedNames: deployedNames)
 
             projects = fetched.sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }
@@ -89,6 +101,18 @@ struct ProjectsView: View {
         }
 
         isLoading = false
+    }
+
+    /// Route "Update" to the right deploy flow: video decks (history folderPath is a
+    /// video file) → Deploy Video with the project name preset; otherwise HTML Deploy.
+    private func routeUpdate(_ project: VercelProject) {
+        if let onSelectVideoProject,
+           let entry = historyEntries.first(where: { $0.projectName == project.name }),
+           VideoDeployLogic.isVideoDeck(folderPath: entry.folderPath) {
+            onSelectVideoProject(project.name)
+        } else {
+            onSelectProject(project.name)
+        }
     }
 
     private func deleteProject(_ project: VercelProject) async {
