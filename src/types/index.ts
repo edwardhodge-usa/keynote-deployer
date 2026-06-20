@@ -106,7 +106,7 @@ export interface AppSettings {
 }
 
 // Navigation tabs
-export type TabId = 'deploy' | 'projects' | 'history' | 'preview' | 'settings'
+export type TabId = 'deploy' | 'projects' | 'history' | 'video' | 'settings'
 
 // Theme state
 export interface ThemeState {
