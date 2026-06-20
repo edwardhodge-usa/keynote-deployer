@@ -558,6 +558,11 @@ export function generateGifViewerHtml(
       renderSlide(0);
       updateControls();
       reportHeight();
+      // Re-report on a few delays — the host may still be settling the iframe
+      // width when the first report fires.
+      setTimeout(reportHeight, 250);
+      setTimeout(reportHeight, 700);
+      setTimeout(reportHeight, 1500);
     }
 
     // ── Auto-fit: tell the host (a Framer code component) the exact height the
@@ -580,10 +585,19 @@ export function generateGifViewerHtml(
     }
 
     var _reportTimer = null;
-    window.addEventListener('resize', function() {
+    function scheduleReport() {
       if (_reportTimer) clearTimeout(_reportTimer);
-      _reportTimer = setTimeout(reportHeight, 120);
-    });
+      _reportTimer = setTimeout(reportHeight, 80);
+    }
+    window.addEventListener('resize', scheduleReport);
+    // A host (e.g. Framer) sizes the iframe AFTER first paint, and that resize
+    // may not always surface as a window 'resize' inside the frame. Observe the
+    // root element directly so any width change re-reports the correct height —
+    // otherwise the height stays locked to the initial (often narrower) width
+    // and the deck renders small, centered, away from the edges.
+    if (window.ResizeObserver) {
+      try { new ResizeObserver(scheduleReport).observe(document.documentElement); } catch (e) {}
+    }
 
     function renderSlide(index) {
       var canvas = document.getElementById('slideCanvas');
