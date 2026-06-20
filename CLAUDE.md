@@ -150,7 +150,8 @@ Applied via regex to Keynote's exported `main.js`. All fixes are idempotent — 
 - **Release:** `CODE_SIGN_STYLE: Manual`, `Developer ID Application: Imaginelab Studios (8RHA62T6FQ)`, hardened runtime enabled
 - **Entitlements:** `com.apple.security.network.client` (required for Vercel API/CLI)
 - **Sparkle config:** EdDSA key + feed URL via gitignored `Sparkle.xcconfig` (referenced in `project.yml` configFiles)
-- **Notarization:** Keychain profile `notarytool` configured, must re-sign Sparkle nested binaries with `--options runtime --timestamp`
+- **Notarization:** Keychain profile `notarytool` configured, must re-sign Sparkle nested binaries with `--options runtime --timestamp`. **Re-sign each EXPLICITLY, inside-out, errors VISIBLE** (XPCServices/{Downloader,Installer}.xpc → Updater.app/Contents/MacOS/Updater + Updater.app → Autoupdate → Versions/B/Sparkle → .framework → app) — a `find -perm +111 … 2>/dev/null` loop silently misses `Versions/B/Autoupdate` → notarize "Invalid: not signed with valid Developer ID / no secure timestamp". Verify `codesign -dvv …/Autoupdate` shows `TeamIdentifier=8RHA62T6FQ` + a Timestamp before zipping. Never `2>/dev/null` a codesign here. (2026-06-20)
+- **App icon:** no asset catalog — `AppIcon.icns` (sips→iconutil from the 1024 source) lives in `Sources/Resources/`, set via `info.properties: CFBundleIconFile: AppIcon`.
 
 ### Known Issues the Swift Build Must Respect
 - Filter projects list by cross-referencing with local deployment history
