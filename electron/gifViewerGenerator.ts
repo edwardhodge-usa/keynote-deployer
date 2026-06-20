@@ -526,6 +526,16 @@ export function generateGifViewerHtml(
       canvas.width = parsedData.width;
       canvas.height = parsedData.height;
 
+      // Cap the deck at the GIF's NATIVE pixel width so it never upscales past
+      // its real resolution (which would look soft/blurry). The dimensions are
+      // only known after the GIF is parsed, so this is set here at runtime, not
+      // baked. In a wide embed the deck stops growing at native width and the
+      // host site shows through the transparent margins; on a phone/tablet it
+      // shrinks to fit. object-fit:contain guarantees it is never cropped.
+      if (document.body.classList.contains('in-iframe')) {
+        canvasContainer.style.maxWidth = parsedData.width + 'px';
+      }
+
       // Build dot strip
       var dotStrip = document.getElementById('dotStrip');
       dotStrip.innerHTML = '';
