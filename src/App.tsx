@@ -3,7 +3,7 @@ import Sidebar from './components/Sidebar'
 import Deploy from './components/Deploy'
 import Projects from './components/Projects'
 import History from './components/History'
-import GifViewer from './components/GifViewer'
+import VideoViewer from './components/VideoViewer'
 import Settings from './components/Settings'
 import type { TabId } from './types'
 
@@ -14,7 +14,7 @@ export default function App() {
   useEffect(() => {
     // Listen for menu bar navigation (Cmd+, for Settings, Cmd+N for Deploy)
     window.electron.onNavigate((tab: string) => {
-      if (tab === 'deploy' || tab === 'projects' || tab === 'history' || tab === 'preview' || tab === 'settings') {
+      if (tab === 'deploy' || tab === 'projects' || tab === 'history' || tab === 'video' || tab === 'settings') {
         setActiveTab(tab as TabId)
       }
     })
@@ -36,7 +36,7 @@ export default function App() {
         {activeTab === 'deploy' && <Deploy selectedProject={selectedProject} onProjectUsed={() => setSelectedProject(undefined)} />}
         {activeTab === 'projects' && <Projects onSelectProject={handleProjectSelect} />}
         {activeTab === 'history' && <History />}
-        {activeTab === 'preview' && <GifViewer />}
+        {activeTab === 'video' && <VideoViewer />}
         {activeTab === 'settings' && <Settings />}
       </main>
     </div>
