@@ -219,3 +219,13 @@ Files I read to write this section (all absolute paths):
 - `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Sources/Models/ProcessingStep.swift`
 
 Load-bearing correction I surfaced for downstream sections: the plan (§5.9) claims `NavigationTab` already has a `.video` case, but the live source at `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Sources/Models/NavigationTab.swift` only declares `deploy / projects / history / settings`. The `.video` case must be ADDED (in section-08), not assumed present. I noted this in the section so section-01 doesn't add it prematurely and section-08 knows to create it.
+---
+
+## ✅ As-built (deep-implement)
+
+- Created `Sources/Models/VideoDeployRequest.swift` + `Sources/Models/VideoAnalysis.swift` (exact §5.1 shapes, `Sendable`, no Codable).
+- Created `Sources/Resources/.gitkeep` (section-03 REPLACES with `video-viewer-template.html`).
+- Created `Tests/ModelsAndProjectTests.swift` (4 Swift Testing tests, all green).
+- `project.yml`: added `KeynoteDeployerTests` (`bundle.unit-test`, dep on app); **dropped manual TEST_HOST/BUNDLE_LOADER** — XcodeGen auto-derives the host from the dependency (cleaner; sidesteps the space-in-app-name footgun) and auto-attaches the test target to the app scheme. Bumped `CURRENT_PROJECT_VERSION` 1.0.4→1.0.5.
+- Verified: `xcodegen generate && xcodebuild test -scheme KeynoteDeployer -destination "platform=macOS"` → build OK, **4 tests passed, exit 0** (real execution, not zero-test green).
+- Downstream: VideoAnalysis invariants validated in §06; .gitkeep replaced in §03; version reconciled in §09.
