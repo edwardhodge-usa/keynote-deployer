@@ -1,11 +1,12 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { AppSettings, ProcessRequest, GifDeployRequest, IpcResponse, FolderValidation, TokenDetection, HistoryEntry, ProcessingProgress, ThemeState, VercelProjectExtended } from '../src/types/index'
+import type { AppSettings, ProcessRequest, GifDeployRequest, VideoDeployRequest, IpcResponse, FolderValidation, TokenDetection, HistoryEntry, ProcessingProgress, ThemeState, VercelProjectExtended } from '../src/types/index'
 
 export interface ElectronAPI {
   selectFolder: () => Promise<IpcResponse<string>>
   validateKeynoteFolder: (folderPath: string) => Promise<IpcResponse<FolderValidation>>
   processAndDeploy: (request: ProcessRequest) => Promise<IpcResponse<import('../src/types/index').PipelineResult>>
   deployGif: (request: GifDeployRequest) => Promise<IpcResponse<import('../src/types/index').PipelineResult>>
+  deployVideo: (request: VideoDeployRequest) => Promise<IpcResponse<import('../src/types/index').PipelineResult>>
   loadSettings: () => Promise<IpcResponse<AppSettings>>
   saveSettings: (settings: Partial<AppSettings>) => Promise<IpcResponse<void>>
   detectVercelToken: () => Promise<IpcResponse<TokenDetection>>
@@ -36,6 +37,8 @@ const electronAPI: ElectronAPI = {
 
   deployGif: (request: GifDeployRequest) =>
     ipcRenderer.invoke('deploy-gif', request),
+  deployVideo: (request: VideoDeployRequest) =>
+    ipcRenderer.invoke('deploy-video', request),
 
   loadSettings: () => ipcRenderer.invoke('load-settings'),
 

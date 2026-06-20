@@ -53,6 +53,20 @@ export interface GifDeployRequest {
   slides: DetectedSlide[]   // build-time boundaries, baked into the viewer
 }
 
+// Deploy a deck VIDEO (H.264) as an interactive slide viewer. Supersedes the GIF
+// path for held-build / constant-background decks (see docs/VIDEO_DECK_VIEWER.md).
+// The per-slide stills are the slide-count + boundary ground truth; the pipeline
+// DP-matches them to video frames to derive timestamps, then re-encodes with a
+// forced keyframe at each slide.
+export interface VideoDeployRequest {
+  videoPath: string         // Keynote movie export (H.264 .m4v/.mp4 or .mov)
+  stillPaths: string[]      // one JPEG per slide (slide-count + boundary source)
+  fps: number               // export frame rate (constant), e.g. 30
+  projectName: string
+  title: string
+  secureEmbed: boolean
+}
+
 // Full pipeline result
 export interface PipelineResult {
   success: boolean
