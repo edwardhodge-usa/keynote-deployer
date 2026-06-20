@@ -139,3 +139,21 @@ Key files referenced (all absolute):
 - Create: `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Sources/Services/FFmpegVideoEncoder.swift`
 - Electron arg source of truth: `/Users/EdwardHodge_1/Code/keynote-deployer/electron/videoDeckPipeline.ts` (lines 20–109)
 - Binary-discovery + Process/PATH/pipe-drain pattern to reuse: `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Sources/Services/VercelDeployer.swift` (lines 34–39, 48–60, 81–109)
+---
+
+## Actual Implementation (2026-06-20)
+
+Built as planned. 50/50 suite green (9 new in "Section 5 — FFmpegVideoEncoder"), all offline, Swift 6 clean, EXIT=0.
+
+**Files:** `Sources/Services/FFmpegVideoEncoder.swift` (struct, pure arg builders + Process runner), `Sources/Services/VideoEncoding.swift` (added `.binaryNotFound` case + shared `JSNumber.format`), `Tests/FFmpegVideoEncoderTests.swift`. No ffmpeg bundled; not default; no project.yml change.
+
+**Parity correction (ground-truth over the section's example):** Electron's `-force_key_frames` = `timestamps.join(',')` on JS numbers → `[0,2.5,5]` renders **"0,2.5,5"** (no trailing zeros), NOT the section's illustrative "0.0,2.5,5.0". The encoder + test match the live path via `JSNumber.format`.
+
+**probe uses ffprobe** (separate binary from ffmpeg) — both discovered via `which` + Homebrew candidates (`/opt/homebrew/bin`, `/usr/local/bin`), PATH augmented for Finder-launched GUI apps. Missing binary → actionable `.binaryNotFound` ("brew install ffmpeg"). A1: argument-array Process only, never a shell — injection-laden filenames travel as one inert arg (tested).
+
+**Review fixes applied (no Critical):**
+- **stderr drained CONCURRENTLY** with stdout (was: stderr read after stdout EOF on the calling thread → could deadlock if stderr >64KB before stdout closes; the documented "full stderr pipe" hazard). Now `async let` both, await both, then waitUntilExit.
+- **`JSNumber.format` hoisted to a single shared helper** in VideoEncoding.swift; VideoViewerGenerator (section 03) AND FFmpegVideoEncoder both call it — the determinism-critical JS-number formatter can no longer drift between the viewer's `{{TS}}` and the keyframe CSV. Section-03 golden byte-parity reconfirms.
+- **cancel reads as cancel:** run() throws `.cancelled` when `Task.isCancelled` after waitUntilExit (was: returned normally → encode threw a confusing writerFailed("status 15")).
+
+**Wiring note:** the `useFfmpegEncoder` UserDefaults seam + injection is Section 07 — this section only makes FFmpegVideoEncoder instantiable + protocol-conformant.

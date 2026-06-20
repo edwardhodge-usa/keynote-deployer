@@ -26,6 +26,7 @@ enum VideoEncoderError: Error, LocalizedError, Sendable, Equatable {
     case variableFrameRate
     case readerFailed(String)
     case writerFailed(String)
+    case binaryNotFound(String)
     case cancelled
 
     var errorDescription: String? {
@@ -40,9 +41,31 @@ enum VideoEncoderError: Error, LocalizedError, Sendable, Equatable {
             return "Reading the source video failed: \(detail)"
         case .writerFailed(let detail):
             return "Encoding the video failed: \(detail)"
+        case .binaryNotFound(let detail):
+            return detail
         case .cancelled:
             return "Encoding was cancelled."
         }
+    }
+}
+
+/// Formats a `Double` the way JavaScript `Number.toString` / `JSON.stringify`
+/// does: integer values without a decimal point (`12` not `12.0`), fractionals
+/// with trailing zeros stripped (`5.6` not `5.600`). Load-bearing for byte-parity
+/// with the Electron path — it backs BOTH the video viewer's baked `{{TS}}` array
+/// and the ffmpeg `-force_key_frames` CSV, so a single shared definition keeps the
+/// two engines from silently diverging. Assumes ≤3-decimal inputs (upstream
+/// timestamps are `round((f/fps)*1000)/1000`).
+enum JSNumber {
+    static func format(_ x: Double) -> String {
+        if x.isFinite && x == x.rounded() {
+            // %.0f (not Int(x)) avoids the Int(Double) trap on out-of-range values.
+            return String(format: "%.0f", x)
+        }
+        var s = String(format: "%.3f", x)
+        while s.hasSuffix("0") { s.removeLast() }
+        if s.hasSuffix(".") { s.removeLast() }
+        return s
     }
 }
 

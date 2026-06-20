@@ -36,7 +36,7 @@ enum VideoViewerGenerator {
 
         // {{TS}} — compact JSON matching JS `JSON.stringify([…])` (no spaces; no
         // trailing zeros; integer values have no decimal point). Empty -> "[]".
-        let ts = "[" + timestamps.map(jsNumber).joined(separator: ",") + "]"
+        let ts = "[" + timestamps.map(JSNumber.format).joined(separator: ",") + "]"
 
         let secureEmbedCss = secureEmbed
             ? "body { user-select: none; } #deck video { pointer-events: none; }"
@@ -55,24 +55,5 @@ enum VideoViewerGenerator {
             .replacingOccurrences(of: "{{VH}}", with: String(videoHeight))
             .replacingOccurrences(of: "{{SECURE_EMBED_CSS}}", with: secureEmbedCss)
             .replacingOccurrences(of: "{{SECURE_EMBED_SCRIPT}}", with: secureEmbedScript)
-    }
-
-    /// Format a `Double` the way JavaScript `JSON.stringify` would: integer values
-    /// render with no decimal point (`12` not `12.0`), fractionals strip trailing
-    /// zeros (`5.6` not `5.600`). Upstream timestamps are rounded to 3 decimals
-    /// (`round((t/fps)*1000)/1000`), so 3-place formatting + trailing-zero strip
-    /// is sufficient and byte-matches JS for all expected inputs. The golden
-    /// byte-parity test is the authoritative confirmation.
-    private static func jsNumber(_ x: Double) -> String {
-        if x.isFinite && x == x.rounded() {
-            // `%.0f` (not `Int(x)`) — Int(Double) traps on integer-valued doubles
-            // outside Int range; this formats normal-range integers identically
-            // ("12", "0", "100") without the crash risk.
-            return String(format: "%.0f", x)
-        }
-        var s = String(format: "%.3f", x)
-        while s.hasSuffix("0") { s.removeLast() }
-        if s.hasSuffix(".") { s.removeLast() }
-        return s
     }
 }

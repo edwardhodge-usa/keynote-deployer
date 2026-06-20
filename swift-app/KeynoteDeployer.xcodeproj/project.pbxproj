@@ -27,6 +27,7 @@
 		53C52E6F5AC05C366512AD08 /* NavigationTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B38AC4D9349306424DE153 /* NavigationTab.swift */; };
 		54EA0EA3D9BD76F228023924 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3AD033AAD0411C7CA1B6CD /* SettingsView.swift */; };
 		68FCF5155F11F63CBB34761F /* DeploymentVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25181D8CAB9909769D352295 /* DeploymentVerifier.swift */; };
+		6CA11C44E5D0640DB47D2A83 /* FFmpegVideoEncoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21BB4E825DF33B80AB6A0E9C /* FFmpegVideoEncoderTests.swift */; };
 		70CBE64B6030B4BAC00B9F32 /* FileOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082147F09FC716A0BEAD8B15 /* FileOperations.swift */; };
 		77788CDBF10422EED9C391D2 /* video-viewer-template.html in Resources */ = {isa = PBXBuildFile; fileRef = 0C46C9CD46B3D1C3098570B6 /* video-viewer-template.html */; };
 		7DAEEC6461E2EA43B6189CBE /* UpdaterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1AE82499CE26C6968F8AA7 /* UpdaterService.swift */; };
@@ -41,6 +42,7 @@
 		BE71A16FFD585CD12AD762B1 /* KeynoteMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE7E2BD93E4F1F90654BA3E7 /* KeynoteMetadata.swift */; };
 		C1320156DDC609C7483B1F6A /* GridSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B3998DF7B225F311525034 /* GridSampler.swift */; };
 		C4E54C86FF711C684113EACE /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B55FB9E316B645CFD0C08B4F /* HistoryView.swift */; };
+		C6F91B76D51C9A06A0354265 /* FFmpegVideoEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62962D07AF83802E42A4D632 /* FFmpegVideoEncoder.swift */; };
 		CF38C9DBAC8AFF2AF62781ED /* VideoViewerGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B13D91BAAE5426D7EB676719 /* VideoViewerGeneratorTests.swift */; };
 		D11E662E9329C958E5FD05BE /* VideoDeployRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBCFD1B404C9D887FD5FA7B0 /* VideoDeployRequest.swift */; };
 		EA8F1C902A8D2AD7D8A93A30 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 390DDF13A88F1C59BE62D165 /* AppConfig.swift */; };
@@ -66,6 +68,7 @@
 		17821C750B379235D1F37C5E /* PipelineResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineResult.swift; sourceTree = "<group>"; };
 		17A85902F080898C86352154 /* VercelAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VercelAPI.swift; sourceTree = "<group>"; };
 		1C1AE82499CE26C6968F8AA7 /* UpdaterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterService.swift; sourceTree = "<group>"; };
+		21BB4E825DF33B80AB6A0E9C /* FFmpegVideoEncoderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFmpegVideoEncoderTests.swift; sourceTree = "<group>"; };
 		23F61A6BE61C1CDC6237ADF6 /* VercelProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VercelProject.swift; sourceTree = "<group>"; };
 		25181D8CAB9909769D352295 /* DeploymentVerifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeploymentVerifier.swift; sourceTree = "<group>"; };
 		252E013E7FB809AC24354D6C /* DeployProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeployProgressView.swift; sourceTree = "<group>"; };
@@ -83,6 +86,7 @@
 		5D3403EAA4D97975ADF59927 /* VideoAnalysis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoAnalysis.swift; sourceTree = "<group>"; };
 		6014F6E3BFFA0FEA826D475F /* HistoryEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryEntry.swift; sourceTree = "<group>"; };
 		61E0452AB31EE55316A70A2D /* video-viewer-golden-secure.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "video-viewer-golden-secure.html"; sourceTree = "<group>"; };
+		62962D07AF83802E42A4D632 /* FFmpegVideoEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFmpegVideoEncoder.swift; sourceTree = "<group>"; };
 		643B10849DA333A7037B54A5 /* KeynoteDeployer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KeynoteDeployer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		66C0C927B53D57B936E42EA7 /* Sparkle.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Sparkle.xcconfig; sourceTree = "<group>"; };
 		6E9CE1B85FB4D719BE7B0EC8 /* ProcessingStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessingStep.swift; sourceTree = "<group>"; };
@@ -122,6 +126,7 @@
 			children = (
 				3BB79FDC1EFBE27B83DABD22 /* AVFoundationVideoEncoder.swift */,
 				25181D8CAB9909769D352295 /* DeploymentVerifier.swift */,
+				62962D07AF83802E42A4D632 /* FFmpegVideoEncoder.swift */,
 				082147F09FC716A0BEAD8B15 /* FileOperations.swift */,
 				38B3998DF7B225F311525034 /* GridSampler.swift */,
 				A80FCBDC9C1ECDDA55886B5A /* IndexHtmlGenerator.swift */,
@@ -212,6 +217,7 @@
 			isa = PBXGroup;
 			children = (
 				3DF19AE8FCC6FD1C9ADE5B8A /* AVFoundationVideoEncoderTests.swift */,
+				21BB4E825DF33B80AB6A0E9C /* FFmpegVideoEncoderTests.swift */,
 				403D899438A463CD2A362774 /* GridSamplerTests.swift */,
 				AA065551FEEAB39DDEAC9B60 /* ModelsAndProjectTests.swift */,
 				E0A6C88075BDCE7E6E5AF0C9 /* StillsMatchTests.swift */,
@@ -365,6 +371,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				FED0CB7E95A656D351958D95 /* AVFoundationVideoEncoderTests.swift in Sources */,
+				6CA11C44E5D0640DB47D2A83 /* FFmpegVideoEncoderTests.swift in Sources */,
 				A14416E992CD0B244FFA16A1 /* GridSamplerTests.swift in Sources */,
 				419F05D5433E94752E999ED6 /* ModelsAndProjectTests.swift in Sources */,
 				4B289C6795B7E64A9625F96D /* StillsMatchTests.swift in Sources */,
@@ -383,6 +390,7 @@
 				9467E10D5FA4765BE26819DF /* DeployProgressView.swift in Sources */,
 				84AF2E114BF9B992367626D4 /* DeployView.swift in Sources */,
 				68FCF5155F11F63CBB34761F /* DeploymentVerifier.swift in Sources */,
+				C6F91B76D51C9A06A0354265 /* FFmpegVideoEncoder.swift in Sources */,
 				70CBE64B6030B4BAC00B9F32 /* FileOperations.swift in Sources */,
 				C1320156DDC609C7483B1F6A /* GridSampler.swift in Sources */,
 				32E92AFC106BE6E110B3B5BA /* HistoryEntry.swift in Sources */,
