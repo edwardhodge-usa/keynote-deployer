@@ -199,13 +199,54 @@ export function generateGifViewerHtml(
       color: #ef4444;
     }
 
-    /* Iframe embed mode — hide chrome, maximize content */
+    /* Canvas container becomes visible once the GIF is parsed (was inline display:block) */
+    body.viewer-ready #canvasContainer { display: block; }
+
+    /* Iframe embed mode — hide chrome, fill the embed box (match the HTML deck viewer).
+       The deck wrapper uses 100vw/100vh + overflow:hidden so it scales to whatever
+       size Framer's embed gives it; the GIF viewer must do the same instead of
+       capping at 1080px and top-aligning. */
     @media all {
       body.in-iframe header,
       body.in-iframe .keyboard-hint,
       body.in-iframe .powered-by { display: none !important; }
-      body.in-iframe #canvasContainer { margin-top: 8px; }
-      body.in-iframe #viewer { padding-bottom: 12px; }
+
+      body.in-iframe { height: 100vh; overflow: hidden; }
+
+      /* Container takes all the space left over from the controls row and
+         centers the canvas inside it. min-height:0 lets it shrink so the
+         canvas's max-height:100% actually resolves. */
+      body.in-iframe.viewer-ready #canvasContainer {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 1 1 auto;
+        min-height: 0;
+        max-width: none;
+        width: 100%;
+        margin: 0;
+        padding: 8px 16px 0;
+      }
+
+      /* Scale to fit the box at the GIF's true aspect ratio (no 1080-cap, no
+         hardcoded 1080/608 — width/height:auto means the canvas's own backing
+         dimensions drive the ratio, so non-16:9 decks don't distort). */
+      body.in-iframe #slideCanvas {
+        width: auto;
+        height: auto;
+        max-width: 100%;
+        max-height: 100%;
+        aspect-ratio: auto;
+        border: none;
+        border-radius: 0;
+      }
+
+      body.in-iframe #viewer {
+        flex: 0 0 auto;
+        max-width: none;
+        width: 100%;
+        padding: 8px 16px 12px;
+      }
     }
 
     ${secureEmbedCss}
@@ -415,7 +456,9 @@ export function generateGifViewerHtml(
     function initViewer() {
       document.getElementById('loading').style.display = 'none';
       document.getElementById('viewer').style.display = 'flex';
-      document.getElementById('canvasContainer').style.display = 'block';
+      // Reveal the canvas via a body class so CSS controls its display mode
+      // (block when standalone, flex-centered when embedded in an iframe).
+      document.body.classList.add('viewer-ready');
 
       var canvas = document.getElementById('slideCanvas');
       canvas.width = parsedData.width;
