@@ -199,13 +199,116 @@ export function generateGifViewerHtml(
       color: #ef4444;
     }
 
-    /* Iframe embed mode — hide chrome, maximize content */
+    /* Canvas container becomes visible once the GIF is parsed (was inline display:block) */
+    body.viewer-ready #canvasContainer { display: block; }
+
+    /* Iframe embed mode — hide chrome, fill the embed box (match the HTML deck viewer).
+       The deck wrapper uses 100vw/100vh + overflow:hidden so it scales to whatever
+       size Framer's embed gives it; the GIF viewer must do the same instead of
+       capping at 1080px and top-aligning. */
     @media all {
       body.in-iframe header,
       body.in-iframe .keyboard-hint,
       body.in-iframe .powered-by { display: none !important; }
-      body.in-iframe #canvasContainer { margin-top: 8px; }
-      body.in-iframe #viewer { padding-bottom: 12px; }
+
+      /* Center the deck + its controls together as one group so the controls
+         hug the bottom of the deck instead of being pinned to the window edge
+         with dead space between. gap ties the two; the 12px top/bottom keeps
+         a small breathing margin at extreme sizes.
+         - "safe center": if the group is taller than the viewport (e.g. a
+           many-slide deck whose dot strip wraps to several rows), fall back to
+           top-alignment instead of centering — centering would clip the TOP of
+           the deck under overflow:hidden, which is unrecoverable (no scroll).
+         - "background: transparent": let the host site (Framer) background show
+           through the letterbox around the deck — no black fill. */
+      body.in-iframe {
+        height: 100vh;
+        overflow: hidden;
+        justify-content: safe center;
+        gap: 14px;
+        padding: 12px 0;
+        background: transparent;
+      }
+
+      /* Container GROWS to fill the space left above the controls and gives the
+         canvas a DEFINITE box to size against. #viewer (controls) is flex:0 0 and
+         takes its natural height first; this container takes the rest (flex:1 1,
+         min-height:0 lets it shrink below content when the controls are tall, so
+         the canvas never overlaps them — no hardcoded pixel reserve). */
+      body.in-iframe.viewer-ready #canvasContainer {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 1 1 auto;
+        min-height: 0;
+        max-width: none;
+        width: 100%;
+        margin: 0;
+        padding: 0 16px;
+      }
+
+      /* The canvas FILLS its container (width/height:100% against the container's
+         flex-RESOLVED size) and object-fit:contain scales the GIF bitmap inside
+         it at the deck's true aspect ratio — letterboxing within the canvas, not
+         the page. This is what makes the deck scale UP to fill a large embed:
+         width/height:auto would pin the canvas to its intrinsic 1024px and a
+         flex-shrunk auto parent collapses a replaced element toward min-content
+         (the deck rendered tiny in Framer). background:transparent so the
+         letterbox inside the canvas shows the host site, not the base #111. */
+      body.in-iframe #slideCanvas {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        background: transparent;
+        border: none;
+        border-radius: 0;
+      }
+
+      body.in-iframe #viewer {
+        flex: 0 0 auto;
+        max-width: none;
+        width: 100%;
+        margin: 0;
+        padding: 0 16px;
+      }
+
+      /* Controls scale with the embed width (1vw = 1% of the iframe width).
+         clamp() floors them at today's compact size on small embeds and caps
+         them so they never get oversized on a full-bleed embed. */
+      body.in-iframe .controls-row { gap: clamp(16px, 1.8vw, 28px); }
+      /* Scope to the Prev/Next row only — the dots are also <button>s, in a
+         separate #dotStrip, and must NOT pick up this padding (it pills them). */
+      body.in-iframe .controls-row button {
+        font-size: clamp(13px, 1.4vw, 17px);
+        padding: clamp(8px, 0.9vw, 12px) clamp(16px, 1.8vw, 24px);
+        border-radius: clamp(6px, 0.6vw, 9px);
+      }
+      body.in-iframe #slideCounter {
+        font-size: clamp(13px, 1.4vw, 17px);
+        min-width: clamp(80px, 8vw, 110px);
+      }
+      body.in-iframe .dot {
+        width: clamp(8px, 0.9vw, 11px);
+        height: clamp(8px, 0.9vw, 11px);
+        min-width: clamp(8px, 0.9vw, 11px);
+        margin: 0 clamp(2px, 0.25vw, 4px);
+      }
+      /* Many-slide decks wrap the dot strip; base gap is 0, so give wrapped
+         rows vertical breathing room. */
+      body.in-iframe #dotStrip { row-gap: 6px; }
+
+      /* The loading overlay defaults to a near-opaque black sheet
+         (rgba(10,10,10,0.92)) — in a transparent embed that would flash a black
+         rectangle over the host site while the GIF parses. Make the overlay
+         itself transparent and pill just the text + progress bar so the site
+         background stays visible during load. */
+      body.in-iframe #loading { background: transparent; }
+      body.in-iframe #loadingText {
+        background: rgba(10, 10, 10, 0.82);
+        padding: 8px 16px;
+        border-radius: 8px;
+        backdrop-filter: blur(4px);
+      }
     }
 
     ${secureEmbedCss}
@@ -346,10 +449,15 @@ export function generateGifViewerHtml(
       var tempCanvas = document.createElement('canvas');
       var tempCtx = tempCanvas.getContext('2d');
 
-      // Helper: composite a decoded frame onto compCanvas
-      function compositeDecoded(decoded) {
+      // Helper: composite a decoded frame onto a target context (defaults to the
+      // shared compCanvas). Transition playback passes its OWN context so it never
+      // disturbs the background-fill's compCanvas — otherwise navigating before the
+      // fill finishes desyncs that canvas and every later snapshot is captured
+      // corrupt (progressive corruption as you advance).
+      function compositeDecoded(decoded, targetCtx) {
+        targetCtx = targetCtx || compCtx;
         if (decoded.disposalType === 2) {
-          compCtx.clearRect(0, 0, gifWidth, gifHeight);
+          targetCtx.clearRect(0, 0, gifWidth, gifHeight);
         }
         var dims = decoded.dims;
         tempCanvas.width = dims.width;
@@ -357,7 +465,7 @@ export function generateGifViewerHtml(
         var imgData = tempCtx.createImageData(dims.width, dims.height);
         imgData.data.set(decoded.patch);
         tempCtx.putImageData(imgData, 0, 0);
-        compCtx.drawImage(tempCanvas, dims.left, dims.top);
+        targetCtx.drawImage(tempCanvas, dims.left, dims.top);
       }
 
       // ── Boundaries are baked at build time (BAKED_SLIDES). The viewer never detects. ──
@@ -415,11 +523,23 @@ export function generateGifViewerHtml(
     function initViewer() {
       document.getElementById('loading').style.display = 'none';
       document.getElementById('viewer').style.display = 'flex';
-      document.getElementById('canvasContainer').style.display = 'block';
+      // Reveal the canvas via a body class so CSS controls its display mode
+      // (block when standalone, flex-centered when embedded in an iframe).
+      document.body.classList.add('viewer-ready');
 
       var canvas = document.getElementById('slideCanvas');
       canvas.width = parsedData.width;
       canvas.height = parsedData.height;
+
+      // Cap the deck at the GIF's NATIVE pixel width so it never upscales past
+      // its real resolution (which would look soft/blurry). The dimensions are
+      // only known after the GIF is parsed, so this is set here at runtime, not
+      // baked. In a wide embed the deck stops growing at native width and the
+      // host site shows through the transparent margins; on a phone/tablet it
+      // shrinks to fit. object-fit:contain guarantees it is never cropped.
+      if (document.body.classList.contains('in-iframe')) {
+        canvasContainer.style.maxWidth = parsedData.width + 'px';
+      }
 
       // Build dot strip
       var dotStrip = document.getElementById('dotStrip');
@@ -442,6 +562,46 @@ export function generateGifViewerHtml(
       currentSlideIndex = 0;
       renderSlide(0);
       updateControls();
+      reportHeight();
+      // Re-report on a few delays — the host may still be settling the iframe
+      // width when the first report fires.
+      setTimeout(reportHeight, 250);
+      setTimeout(reportHeight, 700);
+      setTimeout(reportHeight, 1500);
+    }
+
+    // ── Auto-fit: tell the host (a Framer code component) the exact height the
+    //    deck wants at the current width, so the embed can size to the content
+    //    on every device with no slack and no cutoff. Height is WIDTH-driven:
+    //    deck width = min(available, native), deck height follows the GIF ratio,
+    //    plus the (already-rendered) controls row. The host listens for
+    //    "kd-viewer-height" and sets the iframe height; the viewer then re-fits
+    //    into exactly that box. No-op when not embedded. ──
+    function reportHeight() {
+      if (window.self === window.top || !parsedData) return;
+      var avail = document.documentElement.clientWidth - 32; // minus container side padding
+      var deckW = Math.min(avail, parsedData.width);
+      var deckH = deckW * (parsedData.height / parsedData.width);
+      var viewerEl = document.getElementById('viewer');
+      var controlsH = viewerEl ? viewerEl.offsetHeight : 80;
+      // deck + controls + body gap(14) + body padding(24) + a little slack
+      var total = Math.ceil(deckH + controlsH + 14 + 24 + 8);
+      window.parent.postMessage({ type: 'kd-viewer-height', height: total }, '*');
+    }
+
+    var _reportTimer = null;
+    function scheduleReport() {
+      if (_reportTimer) clearTimeout(_reportTimer);
+      _reportTimer = setTimeout(reportHeight, 80);
+    }
+    window.addEventListener('resize', scheduleReport);
+    // A host (e.g. Framer) sizes the iframe AFTER first paint, and that resize
+    // may not always surface as a window 'resize' inside the frame. Observe the
+    // root element directly so any width change re-reports the correct height —
+    // otherwise the height stays locked to the initial (often narrower) width
+    // and the deck renders small, centered, away from the edges.
+    if (window.ResizeObserver) {
+      try { new ResizeObserver(scheduleReport).observe(document.documentElement); } catch (e) {}
     }
 
     function renderSlide(index) {
@@ -486,15 +646,35 @@ export function generateGifViewerHtml(
       isPlaying = true;
       updateControls();
 
-      // Restore compCanvas to current slide's settled snapshot
       var currentSlide = slideMap[currentSlideIndex];
       var snapshot = parsedData.slideSnapshots[currentSlide.restFrame];
-      if (snapshot) {
-        parsedData.compCtx.putImageData(snapshot, 0, 0);
-      }
 
       var start = nextSlide.transitionFrames.start;
       var end = nextSlide.transitionFrames.end;
+
+      // Transition plays on its OWN canvas, seeded from the current slide's
+      // settled snapshot. It must NOT touch parsedData.compCanvas/compCtx — the
+      // background-fill is (likely still) compositing the whole GIF on that
+      // shared canvas, and disturbing it would corrupt every later snapshot
+      // (progressive corruption as you advance). All patches here are applied
+      // to txCtx via compositeDecoded(decoded, txCtx).
+      var txCanvas = document.createElement('canvas');
+      txCanvas.width = parsedData.width;
+      txCanvas.height = parsedData.height;
+      var txCtx = txCanvas.getContext('2d');
+      if (snapshot) {
+        txCtx.putImageData(snapshot, 0, 0);
+      }
+
+      // The GIF is do-not-dispose (each frame patches the accumulated composite).
+      // Seeded at the current slide's settled frame, replay every frame from
+      // there up to the dissolve start silently (no draw) so the patches line up,
+      // then animate the dissolve window below. Skipping them would apply patches
+      // onto a composite missing the in-between frames -> piled-up slides.
+      for (var k = currentSlide.restFrame + 1; k < start; k++) {
+        var pre = gifuct.decompressFrame(parsedData.imageFrames[k], parsedData.gct, true);
+        if (pre) parsedData.compositeDecoded(pre, txCtx);
+      }
       var canvas = document.getElementById('slideCanvas');
       var ctx = canvas.getContext('2d');
       var frameIdx = start;
@@ -503,10 +683,10 @@ export function generateGifViewerHtml(
         try {
           var decoded = gifuct.decompressFrame(parsedData.imageFrames[frameIdx], parsedData.gct, true);
           if (decoded) {
-            parsedData.compositeDecoded(decoded);
+            parsedData.compositeDecoded(decoded, txCtx);
           }
           ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(parsedData.compCanvas, 0, 0);
+          ctx.drawImage(txCanvas, 0, 0);
         } catch(e) {
           console.error('Transition frame ' + frameIdx + ' error:', e);
           isPlaying = false;

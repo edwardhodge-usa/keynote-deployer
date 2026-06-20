@@ -6,8 +6,10 @@ import { processKeynoteFolder } from './keynoteProcessor'
 import { deployToVercel } from './vercelDeployer'
 import { verifyDeployment } from './verifier'
 import { verifyRuntime } from './runtimeVerifier'
-import type { ProcessRequest, GifDeployRequest, HistoryEntry, ProcessingStep } from '../src/types/index'
+import type { ProcessRequest, GifDeployRequest, VideoDeployRequest, HistoryEntry, ProcessingStep } from '../src/types/index'
 import { generateGifViewerHtml } from './gifViewerGenerator'
+import { generateVideoViewerHtml } from './videoViewerGenerator'
+import { deriveTimestamps, encodeWithKeyframes, probeVideo } from './videoDeckPipeline'
 import fs from 'fs/promises'
 import { naturalSort } from '../src/utils/stillsMatch'
 
@@ -535,6 +537,77 @@ ipcMain.handle('deploy-gif', async (event, request: GifDeployRequest) => {
         fixesApplied: 0,
         fixesSkipped: 0,
       },
+    }
+  } catch (error) {
+    return { success: false, error: String(error) }
+  }
+})
+
+// Deploy a deck VIDEO as an interactive slide viewer (supersedes GIF compositing
+// for held-build / constant-bg decks). Mirrors deploy-gif. Requires ffmpeg on PATH.
+ipcMain.handle('deploy-video', async (event, request: VideoDeployRequest) => {
+  const sendProgress = (currentStep: number, label: string, detail: string, status: 'pending' | 'active' | 'completed' | 'error') => {
+    event.sender.send('processing-progress', { currentStep, totalSteps: 4, step: { id: currentStep, label, detail, status } })
+  }
+  try {
+    sendProgress(1, 'Preparing video', 'Matching slides + encoding…', 'active')
+    const tempFolder = `/tmp/keynote-deployer-video-${Date.now()}`
+    await fs.mkdir(tempFolder, { recursive: true })
+
+    // 1) probe + derive per-slide timestamps from the stills, 2) re-encode with a
+    //    forced keyframe at each slide.
+    const meta = await probeVideo({ input: request.videoPath })
+    const derived = await deriveTimestamps({
+      videoPath: request.videoPath,
+      stillPaths: request.stillPaths,
+      fps: request.fps || meta.fps,
+    })
+    const videoFilename = 'deck.mp4'
+    await encodeWithKeyframes({
+      input: request.videoPath,
+      output: path.join(tempFolder, videoFilename),
+      timestamps: derived.timestamps,
+    })
+
+    const indexHtml = generateVideoViewerHtml(videoFilename, request.secureEmbed, derived.timestamps, meta.width, meta.height)
+    await fs.writeFile(path.join(tempFolder, 'index.html'), indexHtml, 'utf-8')
+    sendProgress(1, 'Preparing video', `${derived.slideCount} slides ready`, 'completed')
+
+    const settings = await loadSettings()
+    if (!settings.vercelToken) {
+      sendProgress(2, 'Creating Vercel project', 'No token configured', 'error')
+      return { success: false, error: 'Vercel token not configured. Go to Settings first.' }
+    }
+
+    sendProgress(2, 'Creating Vercel project', 'Setting up project...', 'active')
+    const deployResult = await deployToVercel(
+      tempFolder, request.projectName, settings.vercelToken, settings.vercelTeamId,
+      () => {}, request.secureEmbed, settings.embedAllowedDomains ?? ''
+    )
+    if (!deployResult.success) {
+      sendProgress(3, 'Deploying to Vercel', deployResult.error || 'Deployment failed', 'error')
+      return { success: false, error: deployResult.error || 'Deployment failed' }
+    }
+    sendProgress(2, 'Creating Vercel project', 'Project ready', 'completed')
+    sendProgress(3, 'Deploying to Vercel', 'Deployment complete', 'completed')
+    sendProgress(4, 'Complete', deployResult.url, 'completed')
+
+    await addHistoryEntry({
+      id: Date.now().toString(),
+      projectName: request.projectName,
+      title: request.title,
+      slideCount: derived.slideCount,
+      url: deployResult.url,
+      folderPath: request.videoPath,
+      date: new Date().toISOString(),
+      fixesApplied: 0,
+    })
+    if (settings.autoCopyUrl) clipboard.writeText(deployResult.url)
+    await fs.rm(tempFolder, { recursive: true, force: true })
+
+    return {
+      success: true,
+      data: { success: true, projectName: request.projectName, title: request.title, slideCount: derived.slideCount, url: deployResult.url, fixesApplied: 0, fixesSkipped: 0 },
     }
   } catch (error) {
     return { success: false, error: String(error) }
