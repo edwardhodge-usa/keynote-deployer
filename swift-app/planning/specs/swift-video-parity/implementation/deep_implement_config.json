@@ -1,0 +1,67 @@
+{
+  "plugin_root": "/Users/EdwardHodge_1/.claude/plugins/cache/piercelamb-plugins/deep-implement/0.2.1",
+  "sections_dir": "/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/planning/specs/swift-video-parity/sections",
+  "target_dir": "/Users/EdwardHodge_1/Code/keynote-deployer",
+  "state_dir": "/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/planning/specs/swift-video-parity/implementation",
+  "git_root": "/Users/EdwardHodge_1/Code/keynote-deployer",
+  "commit_style": "conventional",
+  "test_command": "uv run pytest",
+  "sections": [
+    "section-01-models-project",
+    "section-02-stillsmatch-gridsampler",
+    "section-03-viewer-generator",
+    "section-04-avfoundation-encoder",
+    "section-05-ffmpeg-fallback",
+    "section-06-timestamp-deriver",
+    "section-07-video-deployer",
+    "section-08-video-deploy-view",
+    "section-09-parity-sunset"
+  ],
+  "sections_state": {
+    "section-01-models-project": {
+      "status": "complete",
+      "commit_hash": "57d651cfb8a253d8fdf2f662d748e15c631569cc"
+    },
+    "section-02-stillsmatch-gridsampler": {
+      "status": "complete",
+      "commit_hash": "3474d78"
+    },
+    "section-03-viewer-generator": {
+      "status": "complete",
+      "commit_hash": "ac7dd0b"
+    },
+    "section-04-avfoundation-encoder": {
+      "status": "complete",
+      "commit_hash": "00e7cf6"
+    },
+    "section-05-ffmpeg-fallback": {
+      "status": "complete",
+      "commit_hash": "505c781"
+    },
+    "section-06-timestamp-deriver": {
+      "status": "complete",
+      "commit_hash": "1e01af9"
+    },
+    "section-07-video-deployer": {
+      "status": "complete",
+      "commit_hash": "71cee5f"
+    },
+    "section-08-video-deploy-view": {
+      "status": "complete",
+      "commit_hash": "40c0798"
+    },
+    "section-09-parity-sunset": {
+      "status": "complete",
+      "commit_hash": "6e95194"
+    }
+  },
+  "pre_commit": {
+    "present": false,
+    "type": "none",
+    "config_file": null,
+    "native_hook": null,
+    "may_modify_files": false,
+    "detected_formatters": []
+  },
+  "created_at": "2026-06-20T07:08:39.774925+00:00"
+}
