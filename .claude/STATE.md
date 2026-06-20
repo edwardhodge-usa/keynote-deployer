@@ -1,34 +1,25 @@
 # Session State
 
-**Last updated:** 2026-06-19
-**Goal:** Ship build-time deck-agnostic GIF slide boundaries (Auto/Stills/Manual) + tech-debt cleanup
-**Plan:** docs/superpowers/plans/2026-06-19-gif-slide-boundaries.md (DONE, all 12 tasks)
+**Last updated:** 2026-06-20
+**Goal:** Ship Swift video deck-deploy parity, harden, sunset Electron, release.
+**Plan:** swift-app/planning/specs/swift-video-parity/ (deep-implement, 9/9 done)
 
 ## Current Task
-**What:** Feature + cleanup merged to main, app rebuilt + installed
-**Status:** COMPLETE. main @ 467f753. App v1.0.6 installed at /Applications/Custom (Stills/Manual live, bundle verified). 8/8 vitest, vite build clean.
-
-**Key files:**
-- src/utils/slideDetection.ts (Auto, TRANSITION_PEAK=0.5 conservative seed)
-- src/utils/stillsMatch.ts (DP matcher), boundaryEdits.ts (manual edits)
-- src/components/GifViewer.tsx (3-source selector), SlideBoundaryEditor.tsx (manual grid)
-- electron/gifViewerGenerator.ts (bakes BAKED_SLIDES, progressive composite, no client detection)
-- scripts/verify-stills.mjs (deck-agnostic verify: `node scripts/verify-stills.mjs <gif> <stillsDir> <count>`)
+**What:** Video deck-deploy feature + Projects-tab management + Electron sunset + 1.1.1 release.
+**Status:** COMPLETE + shipped. Repo is Swift-only. 66/66 tests green.
+**Key files:** swift-app/Sources/{Services/Video*,Views/VideoDeployView.swift,Views/ProjectsView.swift}
 
 ## Context (for next session)
-- Frame-diff GIF detection can't segment held-build/constant-bg decks (6 signals rejected) → boundaries come from Stills (per-slide exports, DP match) or Manual; Auto = seed only. Full lesson: feedback_gif-detection-needs-external-boundaries.md
-- GIF is disposalType=1 → viewer composites 0→N sequentially (no random access).
-- Deck-agnostic proven: deck-1 39/39, deck-2 22/22 stops match stills.
-- Feature is LOCAL-INSTALL ONLY — NOT notarized/released (no /release run). Last release tag predates this.
-- 2 deferred tech-debt items (not safe-trivial): M10 keynoteProcessor `errors` field (pipe-to-UI=feature, or remove=touches result shape); L1 getDataDir() wrapper (harmless).
-- Unrelated dirty file left untouched: .claude/PLAN.md (stale old-session plan, 159 lines) + .memsearch/ (plugin scratch).
+- Swift is the SOLE app — Electron deleted (src/, electron/, Vite); recover from git history if ever needed.
+- v1.1.1 notarized + released (Developer-ID/Sparkle/GitHub); DMG in 03_Custom Apps/KeynoteDeployer/; installed at /Applications/Custom/KeynoteDeployer.app.
+- Version source = project.yml `info.properties` (xcodegen bakes Info.plist) — NOT MARKETING_VERSION alone.
+- Live-gate + /grill caught all the real bugs (fps divergence, AVKit VideoPlayer macOS-26 crash, rest-frame bias, one-shot preset) — see CLAUDE.md lessons + feedback_swift-video-deploy-livegate-sunset.md.
 
 ## Next Step
-If publishing to users: run /release (notarize + DMG + appcast) — feature is only locally installed. Otherwise decide M10 (errors field: surface in UI or delete).
+DECIDED 2026-06-20: stay Developer-ID/Sparkle (option A). App Store/TestFlight is architecturally blocked — the ASC record DOES exist (KeynoteDeployer, Apple ID 6760954499, bundle com.imaginelabstudios.keynote-deployer), but macOS App Store requires the App Sandbox, which forbids this app's `vercel` CLI shell-out + arbitrary file access. Going App Store = a re-architecture project (Vercel REST deployments API + sandbox + security-scoped bookmarks + Apple Distribution signing), NOT an upload. Nothing pending — v1.1.1 shipped.
 
 ## Verification Goals
-- [x] Auto/Stills/Manual produce DetectedSlide[]; viewer consumes baked boundaries (no client detection)
-- [x] Deck-agnostic: deck-1 39/39 + deck-2 22/22 rendered stops match stills
-- [x] Empty-slides deploy guarded (button + viewer)
-- [x] 8/8 vitest, vite build clean, merged to main, app installed
-- [ ] (optional) Notarized release published to users
+- [x] 66/66 tests green, Swift 6 clean
+- [x] v1.1.1 notarized, Gatekeeper-clean, on GitHub Releases + Sparkle appcast
+- [x] Electron removed, Swift builds self-contained
+- [ ] (Optional) TestFlight/App Store setup if desired
