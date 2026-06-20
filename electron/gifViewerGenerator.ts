@@ -557,7 +557,33 @@ export function generateGifViewerHtml(
       currentSlideIndex = 0;
       renderSlide(0);
       updateControls();
+      reportHeight();
     }
+
+    // ── Auto-fit: tell the host (a Framer code component) the exact height the
+    //    deck wants at the current width, so the embed can size to the content
+    //    on every device with no slack and no cutoff. Height is WIDTH-driven:
+    //    deck width = min(available, native), deck height follows the GIF ratio,
+    //    plus the (already-rendered) controls row. The host listens for
+    //    "kd-viewer-height" and sets the iframe height; the viewer then re-fits
+    //    into exactly that box. No-op when not embedded. ──
+    function reportHeight() {
+      if (window.self === window.top || !parsedData) return;
+      var avail = document.documentElement.clientWidth - 32; // minus container side padding
+      var deckW = Math.min(avail, parsedData.width);
+      var deckH = deckW * (parsedData.height / parsedData.width);
+      var viewerEl = document.getElementById('viewer');
+      var controlsH = viewerEl ? viewerEl.offsetHeight : 80;
+      // deck + controls + body gap(14) + body padding(24) + a little slack
+      var total = Math.ceil(deckH + controlsH + 14 + 24 + 8);
+      window.parent.postMessage({ type: 'kd-viewer-height', height: total }, '*');
+    }
+
+    var _reportTimer = null;
+    window.addEventListener('resize', function() {
+      if (_reportTimer) clearTimeout(_reportTimer);
+      _reportTimer = setTimeout(reportHeight, 120);
+    });
 
     function renderSlide(index) {
       var canvas = document.getElementById('slideCanvas');
