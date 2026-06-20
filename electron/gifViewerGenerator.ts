@@ -230,11 +230,16 @@ export function generateGifViewerHtml(
         background: transparent;
       }
 
+      /* Container GROWS to fill the space left above the controls and gives the
+         canvas a DEFINITE box to size against. #viewer (controls) is flex:0 0 and
+         takes its natural height first; this container takes the rest (flex:1 1,
+         min-height:0 lets it shrink below content when the controls are tall, so
+         the canvas never overlaps them — no hardcoded pixel reserve). */
       body.in-iframe.viewer-ready #canvasContainer {
         display: flex;
         align-items: center;
         justify-content: center;
-        flex: 0 1 auto;      /* natural height = the canvas; may shrink, won't grow */
+        flex: 1 1 auto;
         min-height: 0;
         max-width: none;
         width: 100%;
@@ -242,23 +247,19 @@ export function generateGifViewerHtml(
         padding: 0 16px;
       }
 
-      /* Scale to fit the box at the GIF's true aspect ratio (no 1080-cap, no
-         hardcoded 1080/608 — width/height:auto means the canvas's own backing
-         dimensions drive the ratio, so non-16:9 decks don't distort).
-         max-height:100% (NOT a calc(100vh - reserve)) means the canvas sizes
-         against its flex parent's RESOLVED height: #viewer (controls) takes its
-         natural height first as flex:0 0, then #canvasContainer (flex:0 1,
-         min-height:0) shrinks to whatever's left and the canvas fits inside it.
-         So the controls can be ANY height (wrapped dot rows, scaled buttons)
-         and the canvas never overlaps them — no hardcoded pixel reserve to get
-         wrong. object-fit:contain keeps the ratio if the box is ever clamped. */
+      /* The canvas FILLS its container (width/height:100% against the container's
+         flex-RESOLVED size) and object-fit:contain scales the GIF bitmap inside
+         it at the deck's true aspect ratio — letterboxing within the canvas, not
+         the page. This is what makes the deck scale UP to fill a large embed:
+         width/height:auto would pin the canvas to its intrinsic 1024px and a
+         flex-shrunk auto parent collapses a replaced element toward min-content
+         (the deck rendered tiny in Framer). background:transparent so the
+         letterbox inside the canvas shows the host site, not the base #111. */
       body.in-iframe #slideCanvas {
-        width: auto;
-        height: auto;
-        max-width: 100%;
-        max-height: 100%;
+        width: 100%;
+        height: 100%;
         object-fit: contain;
-        aspect-ratio: auto;
+        background: transparent;
         border: none;
         border-radius: 0;
       }
