@@ -211,31 +211,40 @@ export function generateGifViewerHtml(
       body.in-iframe .keyboard-hint,
       body.in-iframe .powered-by { display: none !important; }
 
-      body.in-iframe { height: 100vh; overflow: hidden; }
+      /* Center the deck + its controls together as one group so the controls
+         hug the bottom of the deck instead of being pinned to the window edge
+         with dead space between. gap ties the two; the 12px top/bottom keeps
+         a small breathing margin at extreme sizes. */
+      body.in-iframe {
+        height: 100vh;
+        overflow: hidden;
+        justify-content: center;
+        gap: 14px;
+        padding: 12px 0;
+      }
 
-      /* Container takes all the space left over from the controls row and
-         centers the canvas inside it. min-height:0 lets it shrink so the
-         canvas's max-height:100% actually resolves. */
       body.in-iframe.viewer-ready #canvasContainer {
         display: flex;
         align-items: center;
         justify-content: center;
-        flex: 1 1 auto;
+        flex: 0 1 auto;      /* natural height = the canvas; may shrink, won't grow */
         min-height: 0;
         max-width: none;
         width: 100%;
         margin: 0;
-        padding: 8px 16px 0;
+        padding: 0 16px;
       }
 
       /* Scale to fit the box at the GIF's true aspect ratio (no 1080-cap, no
          hardcoded 1080/608 — width/height:auto means the canvas's own backing
-         dimensions drive the ratio, so non-16:9 decks don't distort). */
+         dimensions drive the ratio, so non-16:9 decks don't distort).
+         max-height reserves room for the controls row so the group stays
+         centered without the canvas overlapping it. */
       body.in-iframe #slideCanvas {
         width: auto;
         height: auto;
         max-width: 100%;
-        max-height: 100%;
+        max-height: calc(100vh - 110px);
         aspect-ratio: auto;
         border: none;
         border-radius: 0;
@@ -245,7 +254,30 @@ export function generateGifViewerHtml(
         flex: 0 0 auto;
         max-width: none;
         width: 100%;
-        padding: 8px 16px 12px;
+        margin: 0;
+        padding: 0 16px;
+      }
+
+      /* Controls scale with the embed width (1vw = 1% of the iframe width).
+         clamp() floors them at today's compact size on small embeds and caps
+         them so they never get oversized on a full-bleed embed. */
+      body.in-iframe .controls-row { gap: clamp(16px, 1.8vw, 28px); }
+      /* Scope to the Prev/Next row only — the dots are also <button>s, in a
+         separate #dotStrip, and must NOT pick up this padding (it pills them). */
+      body.in-iframe .controls-row button {
+        font-size: clamp(13px, 1.4vw, 17px);
+        padding: clamp(8px, 0.9vw, 12px) clamp(16px, 1.8vw, 24px);
+        border-radius: clamp(6px, 0.6vw, 9px);
+      }
+      body.in-iframe #slideCounter {
+        font-size: clamp(13px, 1.4vw, 17px);
+        min-width: clamp(80px, 8vw, 110px);
+      }
+      body.in-iframe .dot {
+        width: clamp(8px, 0.9vw, 11px);
+        height: clamp(8px, 0.9vw, 11px);
+        min-width: clamp(8px, 0.9vw, 11px);
+        margin: 0 clamp(2px, 0.25vw, 4px);
       }
     }
 
