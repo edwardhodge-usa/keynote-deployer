@@ -52,7 +52,7 @@ enum VideoDeployer {
         var step2 = ProcessingStep(id: 2, label: "Encode video", detail: "Re-encoding with per-slide keyframes…", status: .active)
         onProgress(step2)
         let outputURL = URL(fileURLWithPath: tempDir).appendingPathComponent("deck.mp4")
-        try await seams.encoder.encodeWithKeyframes(input: videoURL, output: outputURL, timestamps: analysis.timestamps)
+        try await seams.encoder.encodeWithKeyframes(input: videoURL, output: outputURL, timestamps: analysis.timestamps, fps: analysis.fps)
         step2.status = .completed
         onProgress(step2)
 

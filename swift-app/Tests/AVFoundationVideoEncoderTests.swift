@@ -133,7 +133,7 @@ struct AVFoundationVideoEncoderTests {
         let srcFrameCount = try await encoder.sampleGrids(url: src).count
         let targetFrames = [0, 5, 9]
         let timestamps = targetFrames.map { Double($0) / fps }
-        try await encoder.encodeWithKeyframes(input: src, output: out, timestamps: timestamps)
+        try await encoder.encodeWithKeyframes(input: src, output: out, timestamps: timestamps, fps: fps)
         #expect(FileManager.default.fileExists(atPath: out.path))
 
         // Frame-count integrity: decoded output frames must equal source frames.
@@ -155,13 +155,38 @@ struct AVFoundationVideoEncoderTests {
         if let m = moov, let d = mdat { #expect(m < d, "moov must precede mdat (faststart)") }
     }
 
+    /// C1 regression: the encoder must place keyframes using the PASSED fps (the
+    /// rate the timestamps were derived against), NOT the track's nominalFrameRate.
+    /// Source is 30fps; we deploy timestamps derived at 15fps. Under the old bug
+    /// (encoder re-derived fps=30) the keyframes would land on round(t*30) — the
+    /// wrong frames. With the fix they land on round(t*15).
+    @Test func encodeHonorsPassedFpsNotTrackRate() async throws {
+        let src = try await Self.makeVideo(frames: 20, fps: 30, size: CGSize(width: 320, height: 180), vfr: false)
+        let out = Self.tmpURL(ext: "mp4")
+        defer { try? FileManager.default.removeItem(at: src); try? FileManager.default.removeItem(at: out) }
+
+        let encoder = AVFoundationVideoEncoder()
+        let requestedFps = 15.0
+        let targetFrames = [0, 4, 9]
+        let timestamps = targetFrames.map { Double($0) / requestedFps }   // 0, 0.266…, 0.6 at 15fps
+
+        try await encoder.encodeWithKeyframes(input: src, output: out, timestamps: timestamps, fps: requestedFps)
+        #expect(FileManager.default.fileExists(atPath: out.path))
+
+        // Output is re-stamped at the requested fps → keyframes located against it.
+        let keyframes = try await Self.keyframeFrameIndices(url: out, fps: requestedFps)
+        for idx in forcedKeyframeFrameIndices(timestamps: timestamps, fps: requestedFps) {
+            #expect(keyframes.contains(idx), "keyframe \(idx) (passed fps) missing; actual=\(keyframes.sorted())")
+        }
+    }
+
     @Test func cancellationCleansUp() async throws {
         let src = try await Self.makeVideo(frames: 120, fps: 30, size: CGSize(width: 480, height: 270), vfr: false)
         let out = Self.tmpURL(ext: "mp4")
         defer { try? FileManager.default.removeItem(at: src); try? FileManager.default.removeItem(at: out) }
 
         let encoder = AVFoundationVideoEncoder()
-        let task = Task { try await encoder.encodeWithKeyframes(input: src, output: out, timestamps: [0]) }
+        let task = Task { try await encoder.encodeWithKeyframes(input: src, output: out, timestamps: [0], fps: 30) }
         task.cancel()
         await #expect(throws: VideoEncoderError.cancelled) { try await task.value }
         #expect(!FileManager.default.fileExists(atPath: out.path), "partial output must be removed on cancel")

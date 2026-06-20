@@ -185,3 +185,28 @@ Relevant absolute paths for this section:
 - `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Sparkle.xcconfig` — appcast feed URL + EdDSA public key (committed)
 
 One important ground-truth I confirmed while researching: the existing `PARITY.md` still has a `## GIF Deploy` section listing GIF rows as `Done` for Electron and `N/A` for Swift. That is now **stale** — Electron removed the GIF UI and replaced it with the video path. The implementer should replace (not append to) that section, since leaving it would misrepresent Electron's current state.
+
+---
+
+## As-built — docs done + hardening pass; ship steps handed to Edward
+
+**Docs (tasks 1–4) — DONE, committed:**
+- `PARITY.md`: GIF section retired → `## Video Deploy` (13 rows, Done|Done); chrome "4 tabs"→"5 tabs"; Summary updated (66 features, Swift sole shipping app, Electron deprecated).
+- `README.md`: Video Deck Deploy section + A9 ffmpeg dev note + A7 quality-gate checklist + "Swift is the shipping app / Electron deprecated" note.
+- `CLAUDE.md`: status line + dual-stack reordered (Swift shipping / Electron deprecated), new video services documented under Swift Code Organization, deprecation banner at Parallel Build Architecture, dated Lessons-Learned line.
+- Settings compat: `AppSettings.swift` untouched on the whole branch (`git log main..HEAD` empty) → no migration, no new required key. ✓
+
+**Hardening pass (Edward asked) — DONE, committed:** a final whole-subsystem adversarial
+review (see `implementation/code_review/section-09-*`) found a **ship-blocker (C1: fps
+divergence)** that all offline stub tests passed. Fixed: one authoritative fps threaded
+through `encodeWithKeyframes(fps:)` + the View defaults its fps field to the probed rate;
++ a C1 regression test + `StillsMatchError` friendly messages. 65/65 green, Swift 6 clean.
+I1/I2/I3/C3 accepted as parity/low-risk (rationale in the review doc).
+
+**Ship steps (5–8) — BLOCKING, require Edward (sign-in / human eyeball):**
+- Step 5 live quality gate (A7) — deploy the real 39-slide ILS Quals deck via Vercel
+  (needs the Vercel token) → human side-by-side vs the ffmpeg-baseline. NOT self-certified.
+- Step 6 `/notarize` — Developer-ID DMG + Sparkle appcast (keychain `notarytool` + EdDSA).
+- Step 7 `/portal-deck` → confirm render on the PUBLISHED Framer page.
+- Step 8 Electron deprecation — done in docs; code left intact for one release; full
+  removal is a scheduled follow-up.

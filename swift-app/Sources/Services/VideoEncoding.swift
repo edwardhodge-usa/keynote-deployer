@@ -16,7 +16,13 @@ protocol VideoEncoder: Sendable {
 
     /// Re-encode `input` to web-safe H.264 with a forced keyframe at each
     /// timestamp. Output: yuv420p, High profile, no audio, faststart.
-    func encodeWithKeyframes(input: URL, output: URL, timestamps: [Double]) async throws
+    ///
+    /// `fps` is the SAME authoritative frame rate the timestamps were derived
+    /// against (`VideoAnalysis.fps`). The encoder MUST use it — not a value it
+    /// re-derives from the input track — so `round(timestamp * fps)` recovers the
+    /// exact matched frame index and each forced keyframe lands on its slide's
+    /// frame. A divergent encoder-side fps places keyframes on the wrong frames.
+    func encodeWithKeyframes(input: URL, output: URL, timestamps: [Double], fps: Double) async throws
 }
 
 /// User-facing, actionable encoder errors.

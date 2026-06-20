@@ -81,3 +81,42 @@ All fixes are idempotent — re-processing an already-patched file is safe.
 ## Known Limitation
 
 Keynote exports embedded images at low resolution (266x150 thumbnails). The 7 fixes improve text/vector rendering but can't fix image quality. Workaround: save images as PDF before inserting into Keynote.
+
+## Video Deck Deploy
+
+For image-heavy decks the HTML path can't fix (thumbnailed rasters), export the deck
+as an **H.264 video** plus one **still image per slide** and deploy an interactive
+single-`<video>` viewer. The still count is the slide count; each still is DP-matched
+to its video frame to derive that slide's timestamp. Stills are a build-time input —
+never deployed. Deployed artifact: `deck.mp4` + `index.html`.
+
+> Use **H.264, never HEVC** — Chrome/Firefox don't decode HEVC.
+
+### Developing the ffmpeg fallback (A9)
+
+The shipping encode path is **AVFoundation-native** and needs nothing extra. An
+optional `ffmpeg` fallback exists but is **not bundled** in the shipping binary. To
+develop/test it:
+
+```bash
+brew install ffmpeg                                   # ffmpeg + ffprobe on PATH
+defaults write <bundleid> useFfmpegEncoder -bool YES  # hidden flag (default: AVFoundation)
+```
+
+### Video deploy quality gate (A7 — human sign-off)
+
+Run on the real 39-slide ILS Quals deck, side-by-side against the ffmpeg-baseline deploy:
+
+- (a) No transition blockiness / compression artifacts on the deck transitions.
+- (b) Slide text is crisp and readable.
+- (c) Colors match the source Keynote.
+- (d) Paused keyframes are clean — no shimmer / ghosting from the prior frame.
+
+If AVFoundation passes (a)–(d), it ships. If it fails, switch to the ffmpeg fallback
+(then ffmpeg must be bundled + notarized as a nested binary — out of scope for this release).
+
+## Status: Swift is the shipping app — Electron is deprecated
+
+The **Swift/SwiftUI app is the sole shipping app**. The Electron app is **deprecated**:
+do not build new features on it. Its code is retained for one release as a safety net;
+full removal is a scheduled follow-up.

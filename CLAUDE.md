@@ -9,12 +9,13 @@ Update this file after every correction.
 
 ## Quick Context
 **What**: One-click GUI app that processes Keynote HTML exports (applies 7 HiDPI rendering fixes) and deploys them to Vercel. Replaces a 12-step manual process with drag-and-drop.
-**Dual stack**: Electron 33 + React 18 + TypeScript 5.7 + Vite 6 + Tailwind 3 (primary) | Swift 6.2 + SwiftUI + SwiftData macOS 15+ (parallel build, 100% parity)
-**Status**: Both apps at feature parity (45/45). Swift v1.0.4 released — Developer ID signed, notarized, Sparkle auto-updater integrated.
+**Dual stack**: Swift 6.2 + SwiftUI + SwiftData macOS 15+ (**shipping app**) | Electron 33 + React 18 + TypeScript 5.7 + Vite 6 + Tailwind 3 (**deprecated** — stop-building, code kept one release as a safety net)
+**Status**: Swift is the **sole shipping app** — Developer ID signed, notarized, Sparkle auto-updater. HTML path at parity (45/45) **plus** the H.264 **video deck-deploy** path (`Deploy Video` tab, sections 01–09 of the swift-video-parity spec). The GIF path is retired on both apps. Electron is deprecated; full removal is a scheduled follow-up.
 
 ## Lessons Learned
 <!-- Add project-specific mistakes/solutions here -->
 <!-- Format: **[Date]** - Issue -> Solution -->
+**2026-06-20** - Swift reached **video deck-deploy parity** (swift-video-parity spec, 9 sections, TDD via /deep-implement; AVFoundation-default encoder + ffmpeg hidden-flag fallback, stills→frame DP-match for slide timestamps, single-`<video>` viewer byte-parity) and became the **sole shipping app**; Electron deprecated (code kept one release as a safety net). GIF path retired on both — never merge `feat/gif-deploy-swift`. Encoder default = AVFoundation; ffmpeg NOT bundled (hidden `useFfmpegEncoder` flag only). Framer embed for video uses the probed aspect ratio (`aspect-ratio:w/h`, mirroring GifViewer.tsx) — `VideoDeployResult` carries `width`/`height` so the View needn't re-probe.
 **General** - Keynote exports images as low-res 266x150 thumbnails -> HiDPI fixes only help text/vectors; workaround is save images as PDF before inserting into Keynote
 **2026-04-21** - Vercel CLI token (com.vercel.cli/auth.json) expires silently → Auto-Detect re-reads the same expired token, 403 on team endpoints even if /v2/user returns "Connected". Fix: generate fresh token at vercel.com and paste manually. Also: app writes old in-memory token back to settings.json if you edit while app is running — quit the app first before manually editing settings.json.
 **General** - All 7 HiDPI fixes are idempotent -> Re-processing an already-patched file is safe, no need to check
@@ -117,6 +118,11 @@ Applied via regex to Keynote's exported `main.js`. All fixes are idempotent — 
 
 ## Parallel Build Architecture
 
+> **⚠️ Electron is deprecated — stop building features on it.** The Swift app is the
+> sole shipping app. The dual-track docs below are retained for reference and to keep
+> the Electron code maintainable for the one-release safety-net window; full Electron
+> removal is a scheduled follow-up. Build all new work in Swift.
+
 ### Dual-Track Strategy
 | Primary (Electron) | Swift Equivalent |
 |---|---|
@@ -174,6 +180,17 @@ STOP and report blockers, never silently work around them.
 - `swift-app/Sources/Views/` — one SwiftUI view per React component, `NavigationSplitView` sidebar layout
 - `swift-app/Sources/Config/` — AppConfig constants
 - Menu navigation uses `NotificationCenter` with `.navigateToTab` notification name (no IPC equivalent needed)
+
+**Video deck-deploy services** (`swift-app/Sources/Services/`, swift-video-parity spec sections 01–09):
+- `VideoEncoding.swift` — `VideoEncoder` protocol (probe / sampleGrids / encodeWithKeyframes) + `JSNumber`/keyframe helpers
+- `AVFoundationVideoEncoder` — **default** encoder (Apple-native, no external deps)
+- `FFmpegVideoEncoder` — **fallback** only, gated by the hidden `useFfmpegEncoder` UserDefaults flag; **NOT bundled** in the shipping binary
+- `GridSampler` + `StillsMatch` — 32×18 RGB grid sampling + DP match of stills→video frames
+- `VideoTimestampDeriver` — derives per-slide timestamps from the matched frames
+- `VideoViewerGenerator` — byte-parity single-`<video>` `index.html` from `Sources/Resources/video-viewer-template.html`
+- `VideoDeployer` (+ `VideoDeployerSeams`, `VideoDeployResult`) — orchestrator: probe→derive→encode→generate→deploy (reuses `VercelDeployer`/`VercelAPI`); seams injected for offline tests
+- View: `swift-app/Sources/Views/VideoDeployView.swift` (`Deploy Video` tab, 5-phase machine; `VideoDeployLogic` holds the testable pure helpers)
+- **GIF path is retired** — do NOT merge `feat/gif-deploy-swift` or add a GIF UI to Swift.
 
 ## Update Protocol
 When Claude makes a mistake: "Update CLAUDE.md so you don't make that mistake again."

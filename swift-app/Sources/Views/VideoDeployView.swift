@@ -386,9 +386,13 @@ struct VideoDeployView: View {
         let encoder = VideoDeployerSeams.live(settings: settings).encoder
         Task {
             do {
-                let (w, h, _) = try await encoder.probe(url: url)
+                let (w, h, probedFps) = try await encoder.probe(url: url)
                 await MainActor.run {
                     videoWidth = w; videoHeight = h; isProbing = false
+                    // Default the fps field to the ACTUAL probed rate (Electron derives
+                    // timestamps from the real fps). Leaving it at a hardcoded 30 when the
+                    // export is e.g. 25/29.97 would misplace every forced keyframe.
+                    if probedFps > 0 { fps = (probedFps).rounded() }
                 }
             } catch {
                 await MainActor.run {

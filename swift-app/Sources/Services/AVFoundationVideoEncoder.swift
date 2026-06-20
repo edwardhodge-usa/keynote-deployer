@@ -170,19 +170,19 @@ struct AVFoundationVideoEncoder: VideoEncoder {
         ]
     }
 
-    func encodeWithKeyframes(input: URL, output: URL, timestamps: [Double]) async throws {
+    func encodeWithKeyframes(input: URL, output: URL, timestamps: [Double], fps: Double) async throws {
         // Funnel any cancellation (from the pre-loop awaits OR the encode loop)
         // into a single .cancelled + best-effort cleanup. The loop also cleans up
         // and throws .cancelled directly; that passes through here unchanged.
         do {
-            try await runEncode(input: input, output: output, timestamps: timestamps)
+            try await runEncode(input: input, output: output, timestamps: timestamps, requestedFps: fps)
         } catch is CancellationError {
             try? FileManager.default.removeItem(at: output)
             throw VideoEncoderError.cancelled
         }
     }
 
-    private func runEncode(input: URL, output: URL, timestamps: [Double]) async throws {
+    private func runEncode(input: URL, output: URL, timestamps: [Double], requestedFps: Double) async throws {
         // Contract: callers (Section 07) probe() first — this method assumes a
         // valid, CFR, integer-fps source. The integer-timescale rebuild below and
         // round(t*fps) keyframe mapping are exact only for integer fps; a VFR /
@@ -205,7 +205,13 @@ struct AVFoundationVideoEncoder: VideoEncoder {
         var w = Int(abs(naturalSize.width).rounded())
         var h = Int(abs(naturalSize.height).rounded())
         if w == 0 || h == 0 { w = 1920; h = 1080 }
-        var fps = Double(nominalFrameRate)
+        // Use the AUTHORITATIVE fps the timestamps were derived against — NOT the
+        // track's nominalFrameRate. The output is re-stamped at this fps and the
+        // forced keyframes map via round(t*fps); using a different fps here would
+        // place keyframes on the wrong frames (the slide shown when paused would
+        // be a transition frame). nominalFrameRate is only a last-resort fallback.
+        var fps = requestedFps
+        if fps <= 0 { fps = Double(nominalFrameRate) }
         if fps <= 0 { fps = 30 }
 
         try? FileManager.default.removeItem(at: output)

@@ -86,7 +86,7 @@ Swift: SwiftUI + SwiftData (macOS 15+, Swift 6.2)
 
 | Feature | Primary | Swift | Notes |
 |---|---|---|---|
-| Sidebar navigation (4 tabs) | Done | Done | NavigationSplitView + List |
+| Sidebar navigation (5 tabs) | Done | Done | NavigationSplitView + List (Deploy, Deploy Video, Projects, History, Settings) |
 | Menu bar (Cmd+, Settings, Cmd+N Deploy) | Done | Done | .commands modifier |
 | Dark mode (system theme) | Done | Done | Native SwiftUI |
 | Hidden inset title bar + traffic lights | Done | Done | .windowStyle(.hiddenTitleBar) + .windowToolbarStyle(.unified) |
@@ -94,21 +94,39 @@ Swift: SwiftUI + SwiftData (macOS 15+, Swift 6.2)
 | Version display in sidebar | Done | Done | CFBundleShortVersionString in safeAreaInset footer |
 | Auto-updater | Done | Done | Sparkle 2.7 via SPM, UpdaterService, "Check for Updates" menu item |
 
-## GIF Deploy
+## Video Deploy
+
+The GIF deploy path is **retired** on both apps — GIF compositing ghosts on
+held-build / constant-background decks and is 256-color. Electron replaced it with
+the H.264 **video** path, and this Swift build now reaches parity with it. The
+deployed artifact is `deck.mp4` + a single-`<video>` `index.html` viewer that plays
+real transitions and pauses crisply on each slide. Slide boundaries can't be
+recovered from video pixels, so the user supplies one still per slide (build-time
+input only, never deployed); the still count IS the slide count and each is
+DP-matched to its video frame to derive that slide's timestamp.
 
 | Feature | Primary | Swift | Notes |
 |---|---|---|---|
-| GIF slide viewer (local preview) | Done | N/A | gifuct-js parser + quiet-run slide detection |
-| GIF parsing + slide detection | Done | N/A | ~1000 point pixel-diff sampling, quiet-run algorithm |
-| GIF deploy to Vercel | Done | N/A | Generates standalone HTML viewer + deploys GIF |
-| GIF deploy confirm phase (project name, secure embed) | Done | N/A | Mirrors HTML deploy confirm flow |
-| GIF deploy progress tracking | Done | N/A | 4-step progress via processing-progress channel |
-| GIF deploy complete (URL copy, Framer embed, open) | Done | N/A | Same UX as HTML deploy complete phase |
-| GIF boundary sources (Auto/Stills/Manual) | Done | N/A | Electron only — boundary detection is build-time, N/A Swift |
+| Drop H.264 video + video preview | Done | Done | `VideoDeployView` drop/confirm phases (AVKit) |
+| Pick per-slide stills folder (image-only filter) | Done | Done | `VideoDeployLogic.filterImages` — `UTType.image` (A8) |
+| Frame-rate field + project name (prefix + kebab) | Done | Done | `VideoDeployView` confirm phase + `AppConfig.toKebabCase` |
+| Probe input (reject VFR / corrupt / no-track) | Done | Done | `AVFoundationVideoEncoder.probe` (A2, A8) |
+| Stills→frame DP-match + timestamp derivation | Done | Done | `StillsMatch` + `VideoTimestampDeriver` (sections 02, 06) |
+| H.264 encode with forced keyframe per slide | Done | Done | `AVFoundationVideoEncoder.encodeWithKeyframes` (section 04) |
+| ffmpeg fallback encoder (hidden flag, not bundled) | Done | Done | `FFmpegVideoEncoder` via `useFfmpegEncoder` (A1, A6) |
+| Single-`<video>` viewer HTML generation | Done | Done | `VideoViewerGenerator` byte-parity (section 03) |
+| Deploy to Vercel + URL resolution | Done | Done | `VideoDeployer` reuses `VercelDeployer`/`VercelAPI` (section 07) |
+| Analyzing-progress + 4-step deploy progress | Done | Done | `onProgress` (A5) → `DeployProgressView`, ids 1–4 |
+| Complete (URL copy, Framer embed, open) | Done | Done | embed uses probed aspect ratio (`VideoDeployResult.width/height`) |
+| Secure embed toggle | Done | Done | reuses HTML secure-embed path |
+| Persist HistoryEntry + auto-copy on completion | Done | Done | SwiftData + `settings.autoCopyUrl` (in the View) |
 
 ## Summary
 
-- **Total features:** 53 (8 marked N/A = 45 applicable)
-- **Done:** 51
+- **Total features:** 53 (HTML/Chrome) + 13 (Video Deploy) = 66
+- **Done:** 51 + 13 = 64 (Done on both apps)
 - **TODO:** 0
-- **Parity:** 100% (45/45 applicable features for original feature set; GIF Deploy is Electron-only)
+- **Parity:** 100% — HTML path (45/45 applicable) **and** the video deck-deploy path
+  (13/13) are at Swift parity. The GIF path is retired on both. **Swift is now the
+  sole shipping app; Electron is deprecated** (code retained one release as a safety
+  net — see CLAUDE.md / README.md).

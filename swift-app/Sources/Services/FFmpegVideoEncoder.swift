@@ -94,7 +94,15 @@ struct FFmpegVideoEncoder: VideoEncoder {
         return grids
     }
 
-    func encodeWithKeyframes(input: URL, output: URL, timestamps: [Double]) async throws {
+    func encodeWithKeyframes(input: URL, output: URL, timestamps: [Double], fps: Double) async throws {
+        // `fps` is part of the protocol contract (the rate the timestamps were
+        // derived against). ffmpeg forces keyframes at the SECOND-valued timestamps
+        // directly (`-force_key_frames`, byte-parity with Electron) and preserves
+        // the input cadence, so it needs no fps arg: correctness holds as long as
+        // those timestamps are in the same fps-seconds the viewer seeks to, which
+        // the deriver guarantees. (Fallback encoder; not bundled. Don't override
+        // the fps field away from the export rate when using it.)
+        _ = fps
         let ffmpeg = try resolvedFfmpeg()
         let args = Self.encodeArgs(input: input.path, output: output.path, timestamps: timestamps)
         let (_, status) = try await Self.run(executable: ffmpeg, arguments: args)

@@ -39,7 +39,7 @@ struct VideoDeployerTests {
             if url == videoURL { return frameGrids }
             return [stillGridByPath[url.path] ?? []]
         }
-        func encodeWithKeyframes(input: URL, output: URL, timestamps: [Double]) async throws {
+        func encodeWithKeyframes(input: URL, output: URL, timestamps: [Double], fps: Double) async throws {
             record("encode")
             if let e = encodeError { throw e }
             // Write a 0-byte deck.mp4 so the generate/write step proceeds.

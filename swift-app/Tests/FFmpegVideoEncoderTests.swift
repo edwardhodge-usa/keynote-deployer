@@ -98,7 +98,7 @@ struct FFmpegVideoEncoderTests {
         await #expect {
             try await enc.encodeWithKeyframes(
                 input: URL(fileURLWithPath: "/tmp/x.mp4"),
-                output: URL(fileURLWithPath: "/tmp/y.mp4"), timestamps: [0])
+                output: URL(fileURLWithPath: "/tmp/y.mp4"), timestamps: [0], fps: 30)
         } throws: { error in
             let msg = (error as? VideoEncoderError)?.errorDescription ?? ""
             return msg.contains("ffmpeg") && msg.lowercased().contains("brew install ffmpeg")

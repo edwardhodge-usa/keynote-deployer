@@ -21,7 +21,7 @@ struct VideoTimestampDeriverTests {
             if url == videoURL { return frameGrids }
             return [stillGridByPath[url.path] ?? []]
         }
-        func encodeWithKeyframes(input: URL, output: URL, timestamps: [Double]) async throws {
+        func encodeWithKeyframes(input: URL, output: URL, timestamps: [Double], fps: Double) async throws {
             fatalError("encodeWithKeyframes is not used by derive()")
         }
     }

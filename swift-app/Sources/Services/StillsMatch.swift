@@ -2,7 +2,7 @@ import Foundation
 
 /// Error thrown by ``StillsMatch/matchStillsToFrames(_:_:)`` for inputs that
 /// cannot yield a valid strictly-increasing assignment.
-enum StillsMatchError: Error, Equatable {
+enum StillsMatchError: Error, Equatable, LocalizedError {
     /// Fewer frames than stills (`M < N`): no strictly-increasing frame index
     /// per still exists. The TS oracle silently returns garbage (`null`/`-1`)
     /// in this case; the Swift port rejects it deterministically instead.
@@ -14,6 +14,19 @@ enum StillsMatchError: Error, Equatable {
     /// never trap on a negative array index where the TS oracle would merely
     /// surface a non-monotonic warning.
     case noValidAssignment(stills: Int, frames: Int)
+
+    /// Actionable, user-facing messages — these surface in the deploy `.error`
+    /// phase, so they must read as guidance, not as a raw enum dump.
+    var errorDescription: String? {
+        switch self {
+        case let .tooFewFrames(stills, frames):
+            return "You picked \(stills) slide stills but the video only has \(frames) frames. "
+                + "Pick the matching stills folder, or re-export the video at a higher frame rate."
+        case let .noValidAssignment(stills, frames):
+            return "Couldn't align \(stills) stills to the \(frames) video frames in slide order. "
+                + "Make sure the stills are one-per-slide, in order, and match this deck."
+        }
+    }
 }
 
 /// Pure, offline DP matcher aligning per-slide stills to video frames.
