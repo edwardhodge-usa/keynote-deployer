@@ -29,6 +29,7 @@
 		4C00428279F6EAE4F1216066 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = DF36B5B1F47AEAEE2E972A00 /* Sparkle */; };
 		53C52E6F5AC05C366512AD08 /* NavigationTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B38AC4D9349306424DE153 /* NavigationTab.swift */; };
 		54EA0EA3D9BD76F228023924 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A3AD033AAD0411C7CA1B6CD /* SettingsView.swift */; };
+		65D822F5BE3D7DF0C86BB4F4 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = C19D38B1FAB3FA0489A430C4 /* AppIcon.icns */; };
 		68FCF5155F11F63CBB34761F /* DeploymentVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25181D8CAB9909769D352295 /* DeploymentVerifier.swift */; };
 		6CA11C44E5D0640DB47D2A83 /* FFmpegVideoEncoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21BB4E825DF33B80AB6A0E9C /* FFmpegVideoEncoderTests.swift */; };
 		70CBE64B6030B4BAC00B9F32 /* FileOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082147F09FC716A0BEAD8B15 /* FileOperations.swift */; };
@@ -110,6 +111,7 @@
 		AC9556AE330C0F37CAC5751F /* VideoTimestampDeriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoTimestampDeriver.swift; sourceTree = "<group>"; };
 		B13D91BAAE5426D7EB676719 /* VideoViewerGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoViewerGeneratorTests.swift; sourceTree = "<group>"; };
 		B55FB9E316B645CFD0C08B4F /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
+		C19D38B1FAB3FA0489A430C4 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		CBCFD1B404C9D887FD5FA7B0 /* VideoDeployRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoDeployRequest.swift; sourceTree = "<group>"; };
 		CE7E2BD93E4F1F90654BA3E7 /* KeynoteMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeynoteMetadata.swift; sourceTree = "<group>"; };
 		D57C9F761A616991B1231F01 /* StillsMatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StillsMatch.swift; sourceTree = "<group>"; };
@@ -223,6 +225,7 @@
 			isa = PBXGroup;
 			children = (
 				537673A9D5C3A3390918F7BE /* .gitkeep */,
+				C19D38B1FAB3FA0489A430C4 /* AppIcon.icns */,
 				0C46C9CD46B3D1C3098570B6 /* video-viewer-template.html */,
 			);
 			path = Resources;
@@ -377,6 +380,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				65D822F5BE3D7DF0C86BB4F4 /* AppIcon.icns in Resources */,
 				77788CDBF10422EED9C391D2 /* video-viewer-template.html in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -462,10 +466,10 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1.1.1;
+				CURRENT_PROJECT_VERSION = 1.1.2;
 				INFOPLIST_FILE = Sources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 1.1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.imaginelabstudios.keynote-deployer";
 				SDKROOT = macosx;
 			};
@@ -557,11 +561,11 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application: Imaginelab Studios (8RHA62T6FQ)";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1.1.1;
+				CURRENT_PROJECT_VERSION = 1.1.2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Sources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 1.1.1;
+				MARKETING_VERSION = 1.1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.imaginelabstudios.keynote-deployer";
 				SDKROOT = macosx;
 			};
