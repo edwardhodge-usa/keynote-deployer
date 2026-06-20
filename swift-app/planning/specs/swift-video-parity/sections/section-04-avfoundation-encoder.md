@@ -159,3 +159,20 @@ Relevant file paths (all absolute):
 - Tests under `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Tests/`
 
 Note: `GridSampler.swift` (the section-02 dependency) does not yet exist on disk — confirmed via glob, no `**/GridSampler.swift` found. This section depends on it being created in Section 02 first; the encoder's `sampleGrids` must call `GridSampler.sample` rather than re-implement grid logic.
+---
+
+## Actual Implementation (2026-06-20)
+
+Built as planned. 40/40 suite green (10 new in "Section 4 — AVFoundationVideoEncoder"), Swift 6 clean, EXIT=0.
+
+**Files:** `Sources/Services/VideoEncoding.swift` (protocol + `VideoEncoderError` (Equatable) + pure `forcedKeyframeFrameIndices`), `Sources/Services/AVFoundationVideoEncoder.swift`, `Tests/AVFoundationVideoEncoderTests.swift` (fixtures synthesized in-test: solid CFR/VFR video via AVAssetWriter, gray/color PNG via ImageIO, audio-only .caf via AVAudioFile, garbage mp4).
+
+**Hard-won implementation facts (cost several debug cycles, captured for sections 05–07):**
+- **Forced keyframes REQUIRE rebuilding each frame with explicit timing.** Appending the reader's decompressed `CMSampleBuffer`s verbatim to the writer let VideoToolbox re-time the stream (observed **12 frames in → 16 out**) which broke the 1:1 frame↔index mapping, so `ForceKeyFrame` landed off-by-one and frame count drifted. Fix: `CMSampleBufferCreateForImageBuffer` per frame with `PTS = i/fps`, `duration = 1/fps` (integer timescale). Now decoded output count == source and forced keyframes land exactly. `kCMSampleBufferAttachmentKey_ForceKeyFrame` IS honored — with correct timing.
+- **Keyframe DETECTION must be by PTS, not buffer index.** Reading the output compressed (`outputSettings: nil`) returns buffers that do NOT map 1:1 to frames (saw 16 buffers for a 12-frame file); locate keyframes via `round(pts * fps)` + `kCMSampleAttachmentKey_NotSync`.
+- **`.noVideoTrack` vs `.corruptFile`:** a PNG/garbage file can't be *opened* as an AVAsset (`loadTracks` throws, err -12848) → `.corruptFile`; only a real container with zero video tracks (audio-only .caf) reaches `.noVideoTrack`.
+- **`-only-testing` does NOT filter Swift Testing** structs by name via xcodebuild — run the whole suite.
+
+**Review fixes applied (no Critical):** VFR detect compares deltas to expected `1/fps`, rejects on ≥2 deviations >25% (was mean-relative 10%); writer sized to **raw** naturalSize (not transform-oriented) to match the un-rotated frames it appends (probe keeps oriented dims for the viewer aspect ratio); ForceKeyFrame mode → `ShouldNotPropagate`; readiness poll bounded by a 30s stall watchdog → `.writerFailed`; `sampleGrids` CIContext pinned to sRGB (A3) + throws on a nil frame instead of silently dropping (would shift Section-06 DP alignment); `frameAndStillGridsMatchForSolidColor` test added.
+
+**Contract for Section 07:** `encodeWithKeyframes` assumes a probed, CFR, integer-fps source (integer-timescale rebuild + `round(t*fps)`); it does NOT re-run the VFR check — Section 07 must `probe()` before `encodeWithKeyframes()`.
