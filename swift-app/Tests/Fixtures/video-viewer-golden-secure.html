@@ -16,8 +16,10 @@
   .dot { width:8px; height:8px; border-radius:50%; background:#333; border:none; padding:0; margin:0 2px; cursor:pointer; min-width:8px; transition:background .1s; } .dot.active{background:#3b82f6;} .dot:hover{background:#555;}
   button { padding:8px 16px; background:#222; border:1px solid #333; border-radius:6px; color:#ccc; font-size:13px; cursor:pointer; } button:hover{background:#333;} button:disabled{opacity:.3;cursor:default;}
   .keyboard-hint { font-size:11px; color:#555; }
-  #spinner { width:14px; height:14px; border:2px solid #333; border-top-color:#3b82f6; border-radius:50%; display:none; flex:0 0 auto; }
-  body.busy #spinner { display:inline-block; animation:kd-spin .7s linear infinite; }
+  /* Always reserve the spinner's slot (visibility, not display) so toggling busy
+     never reflows / shifts the Prev/Next buttons. */
+  #spinner { width:14px; height:14px; border:2px solid #333; border-top-color:#3b82f6; border-radius:50%; flex:0 0 auto; visibility:hidden; }
+  body.busy #spinner { visibility:visible; animation:kd-spin .7s linear infinite; }
   @keyframes kd-spin { to { transform:rotate(360deg); } }
   body.in-iframe #spinner { width:clamp(14px,1.5vw,20px); height:clamp(14px,1.5vw,20px); }
   #loading { display:flex; position:fixed; inset:0; background:rgba(10,10,10,.92); z-index:100; flex-direction:column; align-items:center; justify-content:center; gap:16px; } #loadingText{font-size:14px;color:#999;}
@@ -47,21 +49,27 @@
   <div id="deckContainer"><div id="deck"><video id="vid" muted playsinline preload="auto" src="./deck.mp4"></video></div></div>
   <div id="viewer">
     <div class="controls-row"><button id="prevBtn" disabled>&#9664; Previous</button><span id="slideCounter">Slide 0 / 0</span><button id="nextBtn" disabled>Next &#9654;</button><span id="spinner" aria-hidden="true"></span></div>
-    <div id="dotStrip"></div><div class="keyboard-hint">Arrow keys: Previous / Next</div>
+    <div id="dotStrip"></div>
   </div>
   <div id="loading"><div id="loadSpinner"></div><div id="loadingText">Loading presentation…</div></div>
   <script>if (window.self !== window.top) document.body.classList.add('in-iframe');</script>
   <script>
     var TS = [0,1.234,5.6,12];
     var N = TS.length, VW=1920, VH=1080, EPS=0.03;
+    // The matched still lands at the TRAILING edge of each slide's hold, so pausing
+    // exactly on TS[i] can show the first frame(s) of the transition OUT. Bias the
+    // REST frame back ~2 frames into the stable hold (clamped ≥ 0). The transition
+    // still plays fully — it completes well before this point.
+    var REST_BIAS = 0.08;
+    function restTime(i){ var t = TS[i] - REST_BIAS; return t > 0 ? t : 0; }
     var vid = document.getElementById('vid'), deckContainer = document.getElementById('deckContainer'), loading = document.getElementById('loading');
     var current = 0, playing = false;
     document.addEventListener('contextmenu', function(e){ e.preventDefault(); });
 
-    // Rest = the PAUSED video frame at this slide's keyframe timestamp.
+    // Rest = the PAUSED video frame, biased a touch before this slide's keyframe.
     function settleOn(i){
       current = i; playing = false;
-      try { vid.pause(); vid.currentTime = TS[i]; } catch(e){}
+      try { vid.pause(); vid.currentTime = restTime(i); } catch(e){}
       updateControls(); reportHeight();
     }
     function updateControls(){
@@ -75,7 +83,7 @@
     function next(){
       if (playing || current>=N-1) return;
       playing = true; setBusy(true); updateControls();
-      var target = TS[current+1];
+      var target = restTime(current+1);
       function go(){
         var lastT = -1, stalls = 0;
         var pp = vid.play(); if (pp && pp.catch) pp.catch(function(){});
@@ -84,7 +92,7 @@
           var t = vid.currentTime;
           if (t >= target - EPS || vid.ended){
             vid.pause(); current++; playing = false;
-            try { vid.currentTime = TS[current]; } catch(e){}
+            try { vid.currentTime = restTime(current); } catch(e){}
             setBusy(false); updateControls(); reportHeight(); return;
           }
           if (!vid.seeking && Math.abs(t - lastT) < 0.0004){
@@ -97,10 +105,10 @@
       }
       // Don't start the transition until any in-progress seek settles AND we're
       // parked at this slide's frame — otherwise play() races the seek and freezes.
-      if (vid.seeking || Math.abs(vid.currentTime - TS[current]) > 0.1){
+      if (vid.seeking || Math.abs(vid.currentTime - restTime(current)) > 0.1){
         var onSeeked = function(){ vid.removeEventListener('seeked', onSeeked); go(); };
         vid.addEventListener('seeked', onSeeked);
-        try { vid.currentTime = TS[current]; } catch(e){ vid.removeEventListener('seeked', onSeeked); go(); }
+        try { vid.currentTime = restTime(current); } catch(e){ vid.removeEventListener('seeked', onSeeked); go(); }
       } else { go(); }
     }
     function prev(){ if (playing || current<=0) return; settleOn(current-1); }
