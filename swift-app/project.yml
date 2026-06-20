@@ -42,8 +42,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.imaginelabstudios.keynote-deployer
-        MARKETING_VERSION: "1.0.4"
-        CURRENT_PROJECT_VERSION: "1.0.4"
+        MARKETING_VERSION: "1.1.0"
+        CURRENT_PROJECT_VERSION: "1.1.0"
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
       configs:
         Debug:
@@ -58,3 +58,19 @@ targets:
           CODE_SIGNING_ALLOWED: "YES"
           ENABLE_HARDENED_RUNTIME: "YES"
           CODE_SIGN_ENTITLEMENTS: "Sources/KeynoteDeployer.entitlements"
+
+  KeynoteDeployerTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: KeynoteDeployer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.imaginelabstudios.keynote-deployer.tests
+        GENERATE_INFOPLIST_FILE: "YES"
+        CODE_SIGN_STYLE: Automatic
+    # XcodeGen derives TEST_HOST + BUNDLE_LOADER automatically from the app-target
+    # dependency above (a hosted unit-test bundle), and attaches this target to the
+    # KeynoteDeployer scheme's test action. Do NOT set TEST_HOST manually.

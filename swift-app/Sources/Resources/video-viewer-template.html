@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keynote Slide Viewer</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0a0a0a; color:#e5e5e5; font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; }
+  header { width:100%; background:#111; border-bottom:1px solid #222; padding:14px 24px; text-align:center; } header h1 { font-size:16px; font-weight:600; }
+  #deckContainer { display:none; width:100%; max-width:{{VW}}px; margin:24px auto 0; padding:0 16px; }
+  #deck { position:relative; width:100%; aspect-ratio:{{VW}}/{{VH}}; background:#111; border:1px solid #222; border-radius:8px; overflow:hidden; }
+  #deck video { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block; background:#0a0a0a; }
+  #viewer { display:none; width:100%; max-width:{{VW}}px; margin:16px auto 0; padding:0 16px 32px; flex-direction:column; align-items:center; gap:12px; }
+  .controls-row { display:flex; align-items:center; gap:16px; }
+  #slideCounter { font-size:13px; color:#999; min-width:80px; text-align:center; }
+  #dotStrip { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:0; max-width:100%; padding:4px 0; }
+  .dot { width:8px; height:8px; border-radius:50%; background:#333; border:none; padding:0; margin:0 2px; cursor:pointer; min-width:8px; transition:background .1s; } .dot.active{background:#3b82f6;} .dot:hover{background:#555;}
+  button { padding:8px 16px; background:#222; border:1px solid #333; border-radius:6px; color:#ccc; font-size:13px; cursor:pointer; } button:hover{background:#333;} button:disabled{opacity:.3;cursor:default;}
+  .keyboard-hint { font-size:11px; color:#555; }
+  /* Always reserve the spinner's slot (visibility, not display) so toggling busy
+     never reflows / shifts the Prev/Next buttons. */
+  #spinner { width:14px; height:14px; border:2px solid #333; border-top-color:#3b82f6; border-radius:50%; flex:0 0 auto; visibility:hidden; }
+  body.busy #spinner { visibility:visible; animation:kd-spin .7s linear infinite; }
+  @keyframes kd-spin { to { transform:rotate(360deg); } }
+  body.in-iframe #spinner { width:clamp(14px,1.5vw,20px); height:clamp(14px,1.5vw,20px); }
+  #loading { display:flex; position:fixed; inset:0; background:rgba(10,10,10,.92); z-index:100; flex-direction:column; align-items:center; justify-content:center; gap:16px; } #loadingText{font-size:14px;color:#999;}
+  #loadSpinner { width:40px; height:40px; border:3px solid rgba(255,255,255,.12); border-top-color:#3b82f6; border-radius:50%; animation:kd-spin .8s linear infinite; }
+  body.viewer-ready #deckContainer { display:block; }
+  @media all {
+    body.in-iframe header, body.in-iframe .keyboard-hint, body.in-iframe .powered-by { display:none !important; }
+    body.in-iframe { height:100vh; overflow:hidden; justify-content:safe center; gap:14px; padding:12px 0; background:transparent; }
+    body.in-iframe.viewer-ready #deckContainer { display:flex; align-items:center; justify-content:center; flex:1 1 auto; min-height:0; max-width:none; width:100%; margin:0; padding:0 16px; }
+    body.in-iframe #deck { width:auto; height:100%; max-width:100%; aspect-ratio:{{VW}}/{{VH}}; background:transparent; border:none; border-radius:0; }
+    body.in-iframe #deck video { background:transparent; }
+    body.in-iframe #viewer { flex:0 0 auto; max-width:none; width:100%; margin:0; padding:0 16px; }
+    body.in-iframe .controls-row { gap:clamp(16px,1.8vw,28px); }
+    body.in-iframe .controls-row button { font-size:clamp(13px,1.4vw,17px); padding:clamp(8px,.9vw,12px) clamp(16px,1.8vw,24px); border-radius:clamp(6px,.6vw,9px); }
+    body.in-iframe #slideCounter { font-size:clamp(13px,1.4vw,17px); min-width:clamp(80px,8vw,110px); }
+    body.in-iframe .dot { width:clamp(8px,.9vw,11px); height:clamp(8px,.9vw,11px); min-width:clamp(8px,.9vw,11px); margin:0 clamp(2px,.25vw,4px); }
+    body.in-iframe #dotStrip { row-gap:6px; }
+    body.in-iframe #loading { background:transparent; } body.in-iframe #loadingText { background:rgba(10,10,10,.82); padding:8px 16px; border-radius:8px; backdrop-filter:blur(4px); }
+  }
+  /* Narrow embeds (phones): the dots wrap into rows and waste height + are too
+     small to tap — drop them, keep Prev/Next + the "X of N" counter. */
+  @media (max-width:549px){ #dotStrip { display:none !important; } }
+  {{SECURE_EMBED_CSS}}
+</style></head>
+<body>
+  <header><h1>Keynote Slide Viewer</h1></header>
+  <div id="deckContainer"><div id="deck"><video id="vid" muted playsinline preload="auto" src="./{{VIDEO_FILENAME}}"></video></div></div>
+  <div id="viewer">
+    <div class="controls-row"><button id="prevBtn" disabled>&#9664; Previous</button><span id="slideCounter">Slide 0 / 0</span><button id="nextBtn" disabled>Next &#9654;</button><span id="spinner" aria-hidden="true"></span></div>
+    <div id="dotStrip"></div>
+  </div>
+  <div id="loading"><div id="loadSpinner"></div><div id="loadingText">Loading presentation…</div></div>
+  <script>if (window.self !== window.top) document.body.classList.add('in-iframe');</script>
+  <script>
+    var TS = {{TS}};
+    var N = TS.length, VW={{VW}}, VH={{VH}}, EPS=0.03;
+    // The matched still lands at the TRAILING edge of each slide's hold, so pausing
+    // exactly on TS[i] can show the first frame(s) of the transition OUT. Bias the
+    // REST frame back ~2 frames into the stable hold (clamped ≥ 0). The transition
+    // still plays fully — it completes well before this point.
+    var REST_BIAS = 0.08;
+    function restTime(i){ var t = TS[i] - REST_BIAS; return t > 0 ? t : 0; }
+    var vid = document.getElementById('vid'), deckContainer = document.getElementById('deckContainer'), loading = document.getElementById('loading');
+    var current = 0, playing = false;
+    {{SECURE_EMBED_SCRIPT}}
+
+    // Rest = the PAUSED video frame, biased a touch before this slide's keyframe.
+    function settleOn(i){
+      current = i; playing = false;
+      try { vid.pause(); vid.currentTime = restTime(i); } catch(e){}
+      updateControls(); reportHeight();
+    }
+    function updateControls(){
+      document.getElementById('prevBtn').disabled = current<=0 || playing;
+      document.getElementById('nextBtn').disabled = current>=N-1 || playing;
+      document.getElementById('slideCounter').textContent = (current+1)+' of '+N;
+      var dots = document.querySelectorAll('.dot');
+      for (var k=0;k<dots.length;k++) dots[k].classList.toggle('active', k===current);
+    }
+    // Next: play the real transition to the next slide, then pause on its keyframe.
+    function next(){
+      if (playing || current>=N-1) return;
+      playing = true; setBusy(true); updateControls();
+      var target = restTime(current+1);
+      function go(){
+        var lastT = -1, stalls = 0;
+        var pp = vid.play(); if (pp && pp.catch) pp.catch(function(){});
+        function watch(){
+          if (!playing) return;
+          var t = vid.currentTime;
+          if (t >= target - EPS || vid.ended){
+            vid.pause(); current++; playing = false;
+            try { vid.currentTime = restTime(current); } catch(e){}
+            setBusy(false); updateControls(); reportHeight(); return;
+          }
+          if (!vid.seeking && Math.abs(t - lastT) < 0.0004){
+            if (++stalls > 20){ var p2 = vid.play(); if (p2 && p2.catch) p2.catch(function(){}); stalls = 0; }
+          } else stalls = 0;
+          lastT = t;
+          requestAnimationFrame(watch);
+        }
+        requestAnimationFrame(watch);
+      }
+      // Don't start the transition until any in-progress seek settles AND we're
+      // parked at this slide's frame — otherwise play() races the seek and freezes.
+      if (vid.seeking || Math.abs(vid.currentTime - restTime(current)) > 0.1){
+        var onSeeked = function(){ vid.removeEventListener('seeked', onSeeked); go(); };
+        vid.addEventListener('seeked', onSeeked);
+        try { vid.currentTime = restTime(current); } catch(e){ vid.removeEventListener('seeked', onSeeked); go(); }
+      } else { go(); }
+    }
+    function prev(){ if (playing || current<=0) return; settleOn(current-1); }
+    function jump(i){ if (playing) return; settleOn(i); }
+
+    function reportHeight(){
+      if (window.self===window.top) return;
+      var avail = document.documentElement.clientWidth - 32, dw=Math.min(avail,VW), dh=dw*(VH/VW);
+      var v=document.getElementById('viewer'); var ch=v?v.offsetHeight:80;
+      window.parent.postMessage({ type:'kd-viewer-height', height: Math.ceil(dh+ch+14+24+8) }, '*');
+    }
+    var rt=null; function sched(){ if(rt)clearTimeout(rt); rt=setTimeout(reportHeight,80); }
+    window.addEventListener('resize', sched);
+    if (window.ResizeObserver){ try{ new ResizeObserver(sched).observe(document.documentElement);}catch(e){} }
+
+    var dotStrip = document.getElementById('dotStrip');
+    for (var i=0;i<N;i++){ (function(idx){ var d=document.createElement('button'); d.className='dot'; d.title='Slide '+(idx+1); d.onclick=function(){ jump(idx); }; dotStrip.appendChild(d); })(i); }
+    document.getElementById('nextBtn').onclick = next;
+    document.getElementById('prevBtn').onclick = prev;
+    document.addEventListener('keydown', function(e){ if(e.key==='ArrowRight')next(); if(e.key==='ArrowLeft')prev(); });
+
+    // Busy spinner (controls row only) — shows while seeking (jumps) or playing a
+    // transition; never overlays the slide.
+    function setBusy(b){ document.body.classList.toggle('busy', b); }
+    vid.addEventListener('seeking', function(){ setBusy(true); });
+    vid.addEventListener('seeked', function(){ if(!playing && !vid.seeking) setBusy(false); });
+
+    function startUp(){
+      loading.style.display='none'; document.getElementById('viewer').style.display='flex'; document.body.classList.add('viewer-ready');
+      if (document.body.classList.contains('in-iframe')) deckContainer.style.maxWidth = VW+'px';
+      settleOn(0); setTimeout(reportHeight,250); setTimeout(reportHeight,700);
+    }
+    if (vid.readyState >= 1) startUp(); else vid.addEventListener('loadedmetadata', startUp, { once:true });
+    vid.addEventListener('error', function(){ document.getElementById('loadingText').textContent='Video failed to load.'; });
+  </script>
+</body></html>

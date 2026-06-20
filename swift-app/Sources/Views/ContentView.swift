@@ -14,6 +14,8 @@ struct ContentView: View {
                     selectedProject: selectedProject,
                     onProjectUsed: { selectedProject = nil }
                 )
+            case .video:
+                VideoDeployView()
             case .projects:
                 ProjectsView(onSelectProject: { name in
                     selectedProject = name
