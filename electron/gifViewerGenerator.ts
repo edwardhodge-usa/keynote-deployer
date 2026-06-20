@@ -449,10 +449,15 @@ export function generateGifViewerHtml(
       var tempCanvas = document.createElement('canvas');
       var tempCtx = tempCanvas.getContext('2d');
 
-      // Helper: composite a decoded frame onto compCanvas
-      function compositeDecoded(decoded) {
+      // Helper: composite a decoded frame onto a target context (defaults to the
+      // shared compCanvas). Transition playback passes its OWN context so it never
+      // disturbs the background-fill's compCanvas — otherwise navigating before the
+      // fill finishes desyncs that canvas and every later snapshot is captured
+      // corrupt (progressive corruption as you advance).
+      function compositeDecoded(decoded, targetCtx) {
+        targetCtx = targetCtx || compCtx;
         if (decoded.disposalType === 2) {
-          compCtx.clearRect(0, 0, gifWidth, gifHeight);
+          targetCtx.clearRect(0, 0, gifWidth, gifHeight);
         }
         var dims = decoded.dims;
         tempCanvas.width = dims.width;
@@ -460,7 +465,7 @@ export function generateGifViewerHtml(
         var imgData = tempCtx.createImageData(dims.width, dims.height);
         imgData.data.set(decoded.patch);
         tempCtx.putImageData(imgData, 0, 0);
-        compCtx.drawImage(tempCanvas, dims.left, dims.top);
+        targetCtx.drawImage(tempCanvas, dims.left, dims.top);
       }
 
       // ── Boundaries are baked at build time (BAKED_SLIDES). The viewer never detects. ──
@@ -641,15 +646,35 @@ export function generateGifViewerHtml(
       isPlaying = true;
       updateControls();
 
-      // Restore compCanvas to current slide's settled snapshot
       var currentSlide = slideMap[currentSlideIndex];
       var snapshot = parsedData.slideSnapshots[currentSlide.restFrame];
-      if (snapshot) {
-        parsedData.compCtx.putImageData(snapshot, 0, 0);
-      }
 
       var start = nextSlide.transitionFrames.start;
       var end = nextSlide.transitionFrames.end;
+
+      // Transition plays on its OWN canvas, seeded from the current slide's
+      // settled snapshot. It must NOT touch parsedData.compCanvas/compCtx — the
+      // background-fill is (likely still) compositing the whole GIF on that
+      // shared canvas, and disturbing it would corrupt every later snapshot
+      // (progressive corruption as you advance). All patches here are applied
+      // to txCtx via compositeDecoded(decoded, txCtx).
+      var txCanvas = document.createElement('canvas');
+      txCanvas.width = parsedData.width;
+      txCanvas.height = parsedData.height;
+      var txCtx = txCanvas.getContext('2d');
+      if (snapshot) {
+        txCtx.putImageData(snapshot, 0, 0);
+      }
+
+      // The GIF is do-not-dispose (each frame patches the accumulated composite).
+      // Seeded at the current slide's settled frame, replay every frame from
+      // there up to the dissolve start silently (no draw) so the patches line up,
+      // then animate the dissolve window below. Skipping them would apply patches
+      // onto a composite missing the in-between frames -> piled-up slides.
+      for (var k = currentSlide.restFrame + 1; k < start; k++) {
+        var pre = gifuct.decompressFrame(parsedData.imageFrames[k], parsedData.gct, true);
+        if (pre) parsedData.compositeDecoded(pre, txCtx);
+      }
       var canvas = document.getElementById('slideCanvas');
       var ctx = canvas.getContext('2d');
       var frameIdx = start;
@@ -658,10 +683,10 @@ export function generateGifViewerHtml(
         try {
           var decoded = gifuct.decompressFrame(parsedData.imageFrames[frameIdx], parsedData.gct, true);
           if (decoded) {
-            parsedData.compositeDecoded(decoded);
+            parsedData.compositeDecoded(decoded, txCtx);
           }
           ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(parsedData.compCanvas, 0, 0);
+          ctx.drawImage(txCanvas, 0, 0);
         } catch(e) {
           console.error('Transition frame ' + frameIdx + ' error:', e);
           isPlaying = false;
