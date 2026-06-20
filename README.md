@@ -11,21 +11,17 @@ One-click GUI app that processes Keynote HTML exports and deploys them to Vercel
 
 ## Tech Stack
 
-- Electron 33 + React 18 + TypeScript 5.7 + Vite 6 + Tailwind 3
-- macOS native feel: hidden inset title bar, SF Pro fonts, dark mode
-- Vercel REST API (project creation) + CLI (deployment)
+- **Swift 6.2 + SwiftUI + SwiftData** (macOS 15+) — the sole app, in `swift-app/`.
+- Developer-ID signed, notarized, Sparkle auto-update.
+- Vercel REST API (project creation) + CLI (deployment).
+
+> The original Electron 33 + React build was removed 2026-06-20 (Swift reached full
+> parity incl. the video deck-deploy path). It remains in git history if needed.
 
 ## Getting Started
 
 ```bash
-# Install dependencies
-npm install
-
-# Run in development
-npm run electron:dev
-
-# Build for production
-npm run electron:build
+cd swift-app && xcodegen generate && xcodebuild build -scheme KeynoteDeployer -destination "platform=macOS"
 ```
 
 ## Configuration

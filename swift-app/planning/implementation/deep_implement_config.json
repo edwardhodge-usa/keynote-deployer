@@ -1,0 +1,57 @@
+{
+  "plugin_root": "/Users/EdwardHodge_1/.claude/plugins/cache/piercelamb-plugins/deep-implement/0.2.1",
+  "sections_dir": "/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/planning/sections",
+  "target_dir": "/Users/EdwardHodge_1/Code/keynote-deployer",
+  "state_dir": "/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/planning/implementation",
+  "git_root": "/Users/EdwardHodge_1/Code/keynote-deployer",
+  "commit_style": "conventional",
+  "test_command": "cd swift-app && xcodebuild test -scheme KeynoteDeployer -destination \"platform=macOS\"",
+  "sections": [
+    "section-01-foundation-and-models",
+    "section-02-frame-source",
+    "section-03-grid-sampler",
+    "section-04-slide-detector",
+    "section-05-viewer-generator",
+    "section-06-gif-deployer",
+    "section-07-view-and-navigation"
+  ],
+  "sections_state": {
+    "section-01-foundation-and-models": {
+      "status": "complete",
+      "commit_hash": "f1f30e3"
+    },
+    "section-02-frame-source": {
+      "status": "complete",
+      "commit_hash": "839f1a3"
+    },
+    "section-03-grid-sampler": {
+      "status": "complete",
+      "commit_hash": "072d2a4"
+    },
+    "section-04-slide-detector": {
+      "status": "complete",
+      "commit_hash": "37f0347"
+    },
+    "section-05-viewer-generator": {
+      "status": "complete",
+      "commit_hash": "26da67f"
+    },
+    "section-06-gif-deployer": {
+      "status": "complete",
+      "commit_hash": "5bdfd6f"
+    },
+    "section-07-view-and-navigation": {
+      "status": "complete",
+      "commit_hash": "e2fab55"
+    }
+  },
+  "pre_commit": {
+    "present": false,
+    "type": "none",
+    "config_file": null,
+    "native_hook": null,
+    "may_modify_files": false,
+    "detected_formatters": []
+  },
+  "created_at": "2026-06-19T23:46:49.700582+00:00"
+}

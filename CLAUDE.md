@@ -9,7 +9,7 @@ Update this file after every correction.
 
 ## Quick Context
 **What**: One-click GUI app that processes Keynote HTML exports (applies 7 HiDPI rendering fixes) and deploys them to Vercel. Replaces a 12-step manual process with drag-and-drop.
-**Dual stack**: Swift 6.2 + SwiftUI + SwiftData macOS 15+ (**shipping app**) | Electron 33 + React 18 + TypeScript 5.7 + Vite 6 + Tailwind 3 (**deprecated** — stop-building, code kept one release as a safety net)
+**Stack**: Swift 6.2 + SwiftUI + SwiftData macOS 15+ (sole app). *(Electron/React/Vite removed 2026-06-20 — in git history if needed.)*
 **Status**: Swift is the **sole shipping app** — Developer ID signed, notarized, Sparkle auto-updater. HTML path at parity (45/45) **plus** the H.264 **video deck-deploy** path (`Deploy Video` tab, sections 01–09 of the swift-video-parity spec). The GIF path is retired on both apps. Electron is deprecated; full removal is a scheduled follow-up.
 
 ## Lessons Learned
@@ -36,15 +36,9 @@ Update this file after every correction.
 
 ## Commands
 
-### Electron
-```bash
-npm run electron:dev        # Start development (Vite + Electron)
-npm run electron:build      # Build for production (vite build + electron-builder)
-npm run type-check          # TypeScript type checking (tsc --noEmit)
-
-# Production build MUST output outside iCloud (resource forks break codesign):
-rm -rf dist dist-electron && npx vite build && npx electron-builder --config.directories.output=/tmp/keynote-deployer-release
-```
+> **Electron removed 2026-06-20.** This is now a Swift-only repo (`swift-app/`). The
+> Electron/React/Vite source and its build commands were deleted at the video-deploy
+> sunset; recover from git history (`git log -- src electron`) if ever needed.
 
 ### Swift
 ```bash
