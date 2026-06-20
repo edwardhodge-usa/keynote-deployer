@@ -177,3 +177,17 @@ Additional edge assertion (optional but recommended, cheap):
 Section content written. The implementer's file target is `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Sources/Services/VideoTimestampDeriver.swift`, with tests in the Swift Testing target added by Section 01.
 
 Key load-bearing details captured: the exact 3dp rounding `round((Double(frame)/fps)*1000)/1000` (shared with the viewer's `{{TS}}` JSON and the encoder's forced keyframes), natural-sorting stills before matching, `slideCount == stillURLs.count`, the A5 `@Sendable` progress handler with a default no-op, and off-main cancellable execution via `Task.checkCancellation()`. Dependencies on `VideoAnalysis` (Section 01), `StillsMatch`/`GridSampler` (Section 02), and the `VideoEncoder` protocol (Section 04) are referenced with their signatures so the section is implementable in isolation.
+---
+
+## Actual Implementation (2026-06-20)
+
+Built as planned. 54/54 suite green (4 new in "Section 6 — VideoTimestampDeriver"), offline (fake VideoEncoder), Swift 6 clean, EXIT=0.
+
+**File:** `Sources/Services/VideoTimestampDeriver.swift` — `enum` + one `static derive(encoder:videoURL:stillURLs:fps:onProgress:)`. 3dp rounding `round((Double(frame)/fps)*1000)/1000` (shared with viewer {{TS}} + encoder keyframes). A5 @Sendable progress (0.5 after video, →0.95 across stills, 1.0 final). Cancellable.
+
+**Review fixes (no Critical):**
+- **slideCount invariant:** a still that yields no grid now THROWS (`guard let first = grids.first`) instead of being silently dropped — guarantees slideCount == frames.count == timestamps.count (was: dropped grid → inconsistent VideoAnalysis, out-of-bounds for any timestamps[slide] consumer).
+- **natural-sort:** sort URLs DIRECTLY via `.compare(options:.numeric)` (identical algorithm to StillsMatch.naturalSort) instead of a path→URL Dictionary round-trip that would collapse duplicate paths.
+- **fps guard:** `guard fps > 0` (caller supplies fps; bad value → inf/nan timestamps → corrupt keyframe CSV / {{TS}}).
+
+**⚠ Section 07 must:** (1) probe() before derive/encode (encoder contract), and (2) catch `StillsMatch.matchStillsToFrames` `tooFewFrames` (M<N stills>frames) and surface it as an actionable error — derive propagates it raw.
