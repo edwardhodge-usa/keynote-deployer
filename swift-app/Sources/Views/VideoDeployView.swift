@@ -111,6 +111,11 @@ struct VideoDeployView: View {
     @State private var isDropTargeted = false
     @State private var copied: String?
     @State private var deployTask: Task<Void, Never>?
+    /// The preset (from a Projects "Update") is one-shot: once applied to a video,
+    /// a subsequent video in the same session must NOT inherit it (it would deploy
+    /// over the wrong Vercel project). `presetProjectName` is frozen at construction,
+    /// so we track consumption here.
+    @State private var presetConsumed = false
 
     private var slideCount: Int { stillPaths.count }
     private var canDeploy: Bool {
@@ -405,9 +410,16 @@ struct VideoDeployView: View {
         player = AVPlayer(url: url)
 
         let settings = (try? FileOperations.loadSettings()) ?? .default
-        // An "Update" from Projects targets the existing project; otherwise derive
-        // a fresh name from the filename.
-        projectName = presetProjectName ?? VideoDeployLogic.projectName(prefix: settings.projectNamePrefix, filename: url.lastPathComponent)
+        // An "Update" from Projects targets the existing project — but only ONCE.
+        // After it's consumed, clear the source selection and derive fresh names
+        // from the filename so the next video doesn't overwrite the wrong project.
+        if let preset = presetProjectName, !presetConsumed {
+            projectName = preset
+            presetConsumed = true
+            onProjectUsed?()
+        } else {
+            projectName = VideoDeployLogic.projectName(prefix: settings.projectNamePrefix, filename: url.lastPathComponent)
+        }
         secureEmbed = settings.secureEmbed
 
         phase = .confirm
@@ -545,6 +557,10 @@ struct VideoDeployView: View {
 
     private func reset() {
         deployTask?.cancel()
+        // Abandon any unconsumed preset (e.g. Back without deploying) so it can't
+        // re-apply to a later video this session; clear the source selection too.
+        presetConsumed = true
+        onProjectUsed?()
         phase = .drop
         videoPath = nil
         videoSizeBytes = nil
