@@ -352,3 +352,23 @@ cd swift-app && xcodegen generate && xcodebuild test -scheme KeynoteDeployer -de
 - Electron source of truth: `/Users/EdwardHodge_1/Code/keynote-deployer/electron/videoViewerGenerator.ts` (the function ends with no trailing newline after `</html>` — load-bearing for byte-parity).
 - This section diverges from the existing `IndexHtmlGenerator.swift` pattern (which builds HTML inline from string parts). The plan explicitly mandates a **bundled template + single-pass token fill** here (matching the GIF port's discipline), so do not inline the template.
 - The `Sources/Resources` bundling and the Swift Testing test target are provided by **section-01**; this section depends on both being present in `project.yml`.
+---
+
+## Actual Implementation (2026-06-20)
+
+Built as planned. 29/29 tests green (suite "Section 3 — VideoViewerGenerator parity"), byte-parity confirmed both branches, Swift 6 clean, EXIT=0.
+
+**Files:**
+- `Sources/Services/VideoViewerGenerator.swift` — `enum` + `static generate(...)` + private `jsNumber`.
+- `Sources/Resources/video-viewer-template.html` — derived **programmatically** from `electron/videoViewerGenerator.ts` (extracted the template literal, replaced each `${…}` interpolation with its `{{TOKEN}}`; tokens: VW×5, VH×3, TS/VIDEO_FILENAME/SECURE_EMBED_CSS/SECURE_EMBED_SCRIPT ×1). No trailing newline.
+- `Tests/VideoViewerGeneratorTests.swift` — 7 tests.
+- `Tests/Fixtures/video-viewer-golden-secure.html` (9940 B) + `video-viewer-golden-plain.html` (9790 B) — captured by running the **real** Electron `.ts` (types stripped) through `node` for the exact test input tuples → golden == true Electron output (no transcription drift).
+
+**Deviations / decisions from code review (all auto-fixed):**
+- `jsNumber` integer branch uses `String(format: "%.0f", x)` not `String(Int(x))` — avoids `Int(Double)` trap on out-of-range integer-valued doubles.
+- Added `timestampParityForContractBoundedValues` test locking jsNumber to the 3-decimal/ms contract (`[0.001,0.1,100,12]` → `[0.001,0.1,100,12]`).
+- Goldens load from the **test bundle** via a `BundleAnchor` class (`Bundle(for:)`), not `#filePath` — survives relocated builds / CI; uses the Resources entries XcodeGen already wired.
+
+**Contract note for section-06:** `jsNumber` byte-parity assumes timestamps are pre-rounded to ≤3 decimals (`round((t/fps)*1000)/1000`). Values <0.0005s or with >3 significant decimals would diverge from JS. The `VideoTimestampDeriver` must honor that rounding.
+
+**Wiring confirmed:** `project.yml` app target `sources: path: Sources` auto-categorizes the `.html` into Copy Bundle Resources → reaches `Bundle.main` (hosted tests see it). `template loads (not nil)` test green.
