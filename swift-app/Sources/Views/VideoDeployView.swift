@@ -391,8 +391,10 @@ struct VideoDeployView: View {
                     videoWidth = w; videoHeight = h; isProbing = false
                     // Default the fps field to the ACTUAL probed rate (Electron derives
                     // timestamps from the real fps). Leaving it at a hardcoded 30 when the
-                    // export is e.g. 25/29.97 would misplace every forced keyframe.
-                    if probedFps > 0 { fps = (probedFps).rounded() }
+                    // export is e.g. 25/29.97 would misplace every forced keyframe. Keep
+                    // the true (possibly fractional) rate — the encoder's high-precision
+                    // PTS timescale handles 29.97/23.976 exactly, so don't round here.
+                    if probedFps > 0 { fps = probedFps }
                 }
             } catch {
                 await MainActor.run {

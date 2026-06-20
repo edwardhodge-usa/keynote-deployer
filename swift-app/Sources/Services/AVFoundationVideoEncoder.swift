@@ -256,9 +256,18 @@ struct AVFoundationVideoEncoder: VideoEncoder {
         // which breaks the 1:1 frame mapping that forced-keyframe placement relies
         // on. Rebuilding with a fixed cadence guarantees exactly N output frames
         // and lands each forced keyframe on its intended index.
-        let timescale = Int32(max(fps.rounded(), 1))
-        let frameDuration = CMTime(value: 1, timescale: timescale)
+        // 600_000 ticks/sec cleanly represents 24/25/30/50/60 AND the NTSC fractional
+        // rates (29.97, 23.976, 59.94) without truncation, so each frame's PTS = i/fps
+        // is EXACT and matches the viewer's seek (timestamp[k] = matchedFrame[k]/fps).
+        // An integer timescale (fps.rounded()) would re-time a 29.97 deck to 30 → ~0.1%
+        // faster playback and a drifting seek that misses keyframes late in a long deck.
+        let ptsTimescale: Int32 = 600_000
+        let frameDuration = CMTime(seconds: 1.0 / fps, preferredTimescale: ptsTimescale)
         var frameIndex = 0
+        // The reader emits uniform decoded frames, so the format description from the
+        // first frame is valid for all of them — build it once (saves a CF allocation
+        // per frame across a multi-thousand-frame deck).
+        var cachedFormatDesc: CMVideoFormatDescription?
 
         do {
             // Manual pull loop (no escaping @Sendable closure → Swift-6 clean;
@@ -267,15 +276,16 @@ struct AVFoundationVideoEncoder: VideoEncoder {
                 try Task.checkCancellation()
                 guard let imageBuffer = CMSampleBufferGetImageBuffer(sample) else { continue }
 
-                var formatDesc: CMVideoFormatDescription?
-                CMVideoFormatDescriptionCreateForImageBuffer(
-                    allocator: kCFAllocatorDefault, imageBuffer: imageBuffer, formatDescriptionOut: &formatDesc)
-                guard let fd = formatDesc else {
+                if cachedFormatDesc == nil {
+                    CMVideoFormatDescriptionCreateForImageBuffer(
+                        allocator: kCFAllocatorDefault, imageBuffer: imageBuffer, formatDescriptionOut: &cachedFormatDesc)
+                }
+                guard let fd = cachedFormatDesc else {
                     throw VideoEncoderError.writerFailed("could not build format description at frame \(frameIndex)")
                 }
                 var timing = CMSampleTimingInfo(
                     duration: frameDuration,
-                    presentationTimeStamp: CMTime(value: CMTimeValue(frameIndex), timescale: timescale),
+                    presentationTimeStamp: CMTime(seconds: Double(frameIndex) / fps, preferredTimescale: ptsTimescale),
                     decodeTimeStamp: .invalid)
                 var rebuilt: CMSampleBuffer?
                 let status = CMSampleBufferCreateForImageBuffer(
