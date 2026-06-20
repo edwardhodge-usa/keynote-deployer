@@ -246,3 +246,19 @@ Load-bearing signatures I confirmed against the live `main` source (so the `.liv
 - `VercelAPI(token:teamId:)` → `ensureProject(name:) -> VercelProject` (`.id`, `.name`) and `resolveProductionUrl(projectId:) -> String?`, with the established fallback `"https://\(projectName).vercel.app"`.
 - `AppSettings` exposes `vercelToken`, `vercelTeamId`, `embedAllowedDomains`, `autoCopyUrl`.
 - `ProcessingStep(id:label:detail:status:error:)` with `StepStatus` cases `.active`/`.completed`/`.error`.
+
+---
+
+## As-built (deviations from plan)
+
+Files: `Sources/Services/VideoDeployer.swift`, `Tests/VideoDeployerTests.swift`. 60/60 tests green, Swift 6 strict-concurrency clean, 0 warnings.
+
+Three review-driven deviations from the plan above (decided with Edward, review docs in `implementation/code_review/section-07-*`):
+
+1. **No standalone probe (Important #2).** The plan's Step 1 called `seams.encoder.probe(url:)` explicitly before `derive`. Removed: `VideoTimestampDeriver.derive` already probes internally (its dims are the ones used) and rejects VFR/corrupt/no-track inputs before any sampling, so the standalone call was a redundant probe per deploy — an extra `ffprobe` subprocess on the ffmpeg path. `derive` is now the single probe site. (`derive`'s probe is still `calls.first == "probe"`, so the step-order test is unchanged.)
+
+2. **Live seam remaps progress to id:4 (Important #1).** `VercelDeployer.deploy` emits its own `ProcessingStep(id: 13, …)`. The `.live` seam now wraps the `onProgress` it passes to `VercelDeployer.deploy`, re-emitting each step as `id:4` (detail/status forwarded, `.error` preserved) so the 4-step (id 1–4) contract holds for the View regardless of the underlying deployer.
+
+3. **Deploy-seam throw emits `id:4 .error` (Minor #4).** The `seams.ensureProjectAndDeploy` call is wrapped in `do/catch`: on throw it emits a Step 4 `.error` before rethrowing, so a real Vercel failure doesn't leave Step 4 spinning `.active`. Matches the token-guard path's error-marking.
+
+Also: temp dir is `/tmp/keynote-deployer-video-<unix-ts>-<uuid8>` (the plan said `<unix-ts>`); the uuid8 suffix prevents same-second collisions. Test suite is `.serialized` and asserts via set-difference of `/tmp` `keynote-deployer-video-*` dirs (a global count is racy under Swift Testing's parallel runner). The `.live` success-guard + URL fallback are untested (need a real VercelAPI/network — out of scope for the offline suite).
