@@ -131,6 +131,27 @@ struct VideoViewerGeneratorTests {
         #expect(!out.contains("}}"))
     }
 
+    /// posterFilename nil (default) → no poster attribute, and the <video> tag is
+    /// byte-identical to the pre-poster form (the {{POSTER_ATTR}} token collapses to
+    /// ""). This is what keeps the existing goldens valid without regeneration.
+    @Test func noPosterByDefault() {
+        let out = VideoViewerGenerator.generate(
+            videoFilename: "deck.mp4", secureEmbed: false, timestamps: [0]
+        )
+        #expect(!out.contains("poster="))
+        #expect(out.contains("preload=\"auto\" src=\"./deck.mp4\""))
+        #expect(!out.contains("{{POSTER_ATTR}}"))
+    }
+
+    /// posterFilename present → emits ` poster="./<file>"` on the <video>, before src.
+    @Test func posterAttributeWhenProvided() {
+        let out = VideoViewerGenerator.generate(
+            videoFilename: "deck.mp4", secureEmbed: false, timestamps: [0],
+            videoWidth: 1920, videoHeight: 1080, posterFilename: "poster.jpg"
+        )
+        #expect(out.contains("preload=\"auto\" poster=\"./poster.jpg\" src=\"./deck.mp4\""))
+    }
+
     /// Default parameters mirror Electron (1920x1080) when omitted.
     @Test func defaultDimensionsAre1920x1080() {
         let out = VideoViewerGenerator.generate(

@@ -9,6 +9,18 @@
   #deckContainer { display:none; width:100%; max-width:1920px; margin:24px auto 0; padding:0 16px; }
   #deck { position:relative; width:100%; aspect-ratio:1920/1080; background:#111; border:1px solid #222; border-radius:8px; overflow:hidden; }
   #deck video { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block; background:#0a0a0a; }
+  /* Edge tap-zones: tap the left/right of the slide to go back/forward — the
+     natural gesture on phone/iPad. Invisible until pressed (faint chevron), so
+     they never obscure slide content; buttons/dots/keyboard still work. */
+  .navzone { position:absolute; top:0; bottom:0; width:30%; z-index:10; cursor:pointer;
+    display:flex; align-items:center; -webkit-tap-highlight-color:transparent; user-select:none; }
+  .navzone.left { left:0; justify-content:flex-start; padding-left:10px; }
+  .navzone.right { right:0; justify-content:flex-end; padding-right:10px; }
+  .navzone svg { width:28px; height:28px; opacity:0; transition:opacity .15s;
+    filter:drop-shadow(0 1px 3px rgba(0,0,0,.7)); }
+  .navzone:hover svg, .navzone:active svg { opacity:.6; }
+  .navzone.off { cursor:default; pointer-events:none; }
+  .navzone.off svg { opacity:0 !important; }
   #viewer { display:none; width:100%; max-width:1920px; margin:16px auto 0; padding:0 16px 32px; flex-direction:column; align-items:center; gap:12px; }
   .controls-row { display:flex; align-items:center; gap:16px; }
   #slideCounter { font-size:13px; color:#999; min-width:80px; text-align:center; }
@@ -46,7 +58,7 @@
 </style></head>
 <body>
   <header><h1>Keynote Slide Viewer</h1></header>
-  <div id="deckContainer"><div id="deck"><video id="vid" muted playsinline preload="auto" src="./deck.mp4"></video></div></div>
+  <div id="deckContainer"><div id="deck"><video id="vid" muted playsinline preload="auto" src="./deck.mp4"></video><div class="navzone left" id="navPrev" aria-label="Previous slide"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></div><div class="navzone right" id="navNext" aria-label="Next slide"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div></div></div>
   <div id="viewer">
     <div class="controls-row"><button id="prevBtn" disabled>&#9664; Previous</button><span id="slideCounter">Slide 0 / 0</span><button id="nextBtn" disabled>Next &#9654;</button><span id="spinner" aria-hidden="true"></span></div>
     <div id="dotStrip"></div>
@@ -70,11 +82,27 @@
     function settleOn(i){
       current = i; playing = false;
       try { vid.pause(); vid.currentTime = restTime(i); } catch(e){}
+      paintFrame(); setBusy(false);
       updateControls(); reportHeight();
     }
+    // iOS won't paint a seeked frame on a PAUSED video until it plays, so Prev /
+    // dot-jumps changed state but left the previous frame on screen. A ~40ms micro
+    // play->pause forces the current frame to render; restTime sits mid-hold so
+    // there's no visible motion. The initial load has no user gesture (play() is
+    // blocked there) — the <video poster> covers that first paint instead.
+    function paintFrame(){
+      try {
+        var p = vid.play();
+        if (p && p.then) { p.then(function(){ setTimeout(function(){ try { vid.pause(); } catch(e){} }, 40); }).catch(function(){}); }
+        else { setTimeout(function(){ try { vid.pause(); } catch(e){} }, 40); }
+      } catch(e){}
+    }
     function updateControls(){
-      document.getElementById('prevBtn').disabled = current<=0 || playing;
-      document.getElementById('nextBtn').disabled = current>=N-1 || playing;
+      var atStart = current<=0 || playing, atEnd = current>=N-1 || playing;
+      document.getElementById('prevBtn').disabled = atStart;
+      document.getElementById('nextBtn').disabled = atEnd;
+      var zp = document.getElementById('navPrev'); if (zp) zp.classList.toggle('off', atStart);
+      var zn = document.getElementById('navNext'); if (zn) zn.classList.toggle('off', atEnd);
       document.getElementById('slideCounter').textContent = (current+1)+' of '+N;
       var dots = document.querySelectorAll('.dot');
       for (var k=0;k<dots.length;k++) dots[k].classList.toggle('active', k===current);
@@ -85,23 +113,38 @@
       playing = true; setBusy(true); updateControls();
       var target = restTime(current+1);
       function go(){
-        var lastT = -1, stalls = 0;
-        var pp = vid.play(); if (pp && pp.catch) pp.catch(function(){});
-        function watch(){
-          if (!playing) return;
-          var t = vid.currentTime;
-          if (t >= target - EPS || vid.ended){
-            vid.pause(); current++; playing = false;
-            try { vid.currentTime = restTime(current); } catch(e){}
-            setBusy(false); updateControls(); reportHeight(); return;
-          }
-          if (!vid.seeking && Math.abs(t - lastT) < 0.0004){
-            if (++stalls > 20){ var p2 = vid.play(); if (p2 && p2.catch) p2.catch(function(){}); stalls = 0; }
-          } else stalls = 0;
-          lastT = t;
-          requestAnimationFrame(watch);
+        // iOS WebKit returns vid.currentTime=0 during inline playback inside a
+        // cross-origin iframe (the Framer embed), so the old "play then poll
+        // vid.currentTime" never reaches the boundary and the deck free-plays
+        // through every slide. Stop instead off clocks that DO advance during
+        // playback: a setInterval wall-clock (timers tick reliably on iOS) as the
+        // primary, plus requestVideoFrameCallback mediaTime as a precise early-stop
+        // where it's honored (desktop). Neither reads vid.currentTime. After
+        // stopping we seek to the exact rest frame, so the paused frame is correct
+        // regardless of stop precision. (rAF + timeupdate were both verified dead
+        // ends on iOS in this embed: rAF fires but reads currentTime=0; timeupdate
+        // barely fires; rVFC.mediaTime is unreliable too — wall-clock is the anchor.)
+        var done = false, startPos = restTime(current), rate = vid.playbackRate || 1, capTimer = null;
+        var t0 = Date.now(), budgetMs = Math.max(250, (target - startPos) * 1000 / rate) + 350;
+        function finish(){
+          if (done) return; done = true;
+          if (capTimer){ clearInterval(capTimer); capTimer = null; }
+          vid.pause(); current++; playing = false;
+          try { vid.currentTime = restTime(current); } catch(e){}
+          setBusy(false); updateControls(); reportHeight();
         }
-        requestAnimationFrame(watch);
+        function vf(now, meta){
+          if (done || !playing) return;
+          var mt = (meta && meta.mediaTime != null) ? meta.mediaTime : 0;
+          if (mt >= target - EPS){ finish(); return; }
+          if (vid.requestVideoFrameCallback) vid.requestVideoFrameCallback(vf);
+        }
+        capTimer = setInterval(function(){
+          if (done || !playing){ if (capTimer){ clearInterval(capTimer); capTimer = null; } return; }
+          if (vid.ended || Date.now() - t0 >= budgetMs) finish();
+        }, 50);
+        var pp = vid.play(); if (pp && pp.catch) pp.catch(function(){});
+        if (vid.requestVideoFrameCallback) vid.requestVideoFrameCallback(vf);
       }
       // Don't start the transition until any in-progress seek settles AND we're
       // parked at this slide's frame — otherwise play() races the seek and freezes.
@@ -128,13 +171,15 @@
     for (var i=0;i<N;i++){ (function(idx){ var d=document.createElement('button'); d.className='dot'; d.title='Slide '+(idx+1); d.onclick=function(){ jump(idx); }; dotStrip.appendChild(d); })(i); }
     document.getElementById('nextBtn').onclick = next;
     document.getElementById('prevBtn').onclick = prev;
+    document.getElementById('navNext').onclick = next;
+    document.getElementById('navPrev').onclick = prev;
     document.addEventListener('keydown', function(e){ if(e.key==='ArrowRight')next(); if(e.key==='ArrowLeft')prev(); });
 
-    // Busy spinner (controls row only) — shows while seeking (jumps) or playing a
-    // transition; never overlays the slide.
+    // Busy spinner (controls row only) — toggled EXPLICITLY from next()/finish()/
+    // settleOn(). It is deliberately NOT driven by 'seeking'/'seeked': iOS never
+    // fires 'seeked' for a seek on a paused video, which left the spinner stuck
+    // spinning forever once the viewer came to rest.
     function setBusy(b){ document.body.classList.toggle('busy', b); }
-    vid.addEventListener('seeking', function(){ setBusy(true); });
-    vid.addEventListener('seeked', function(){ if(!playing && !vid.seeking) setBusy(false); });
 
     function startUp(){
       loading.style.display='none'; document.getElementById('viewer').style.display='flex'; document.body.classList.add('viewer-ready');
