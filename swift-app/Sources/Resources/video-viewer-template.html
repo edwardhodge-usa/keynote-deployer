@@ -9,6 +9,18 @@
   #deckContainer { display:none; width:100%; max-width:{{VW}}px; margin:24px auto 0; padding:0 16px; }
   #deck { position:relative; width:100%; aspect-ratio:{{VW}}/{{VH}}; background:#111; border:1px solid #222; border-radius:8px; overflow:hidden; }
   #deck video { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block; background:#0a0a0a; }
+  /* Edge tap-zones: tap the left/right of the slide to go back/forward — the
+     natural gesture on phone/iPad. Invisible until pressed (faint chevron), so
+     they never obscure slide content; buttons/dots/keyboard still work. */
+  .navzone { position:absolute; top:0; bottom:0; width:30%; z-index:10; cursor:pointer;
+    display:flex; align-items:center; -webkit-tap-highlight-color:transparent; user-select:none; }
+  .navzone.left { left:0; justify-content:flex-start; padding-left:10px; }
+  .navzone.right { right:0; justify-content:flex-end; padding-right:10px; }
+  .navzone svg { width:28px; height:28px; opacity:0; transition:opacity .15s;
+    filter:drop-shadow(0 1px 3px rgba(0,0,0,.7)); }
+  .navzone:hover svg, .navzone:active svg { opacity:.6; }
+  .navzone.off { cursor:default; pointer-events:none; }
+  .navzone.off svg { opacity:0 !important; }
   #viewer { display:none; width:100%; max-width:{{VW}}px; margin:16px auto 0; padding:0 16px 32px; flex-direction:column; align-items:center; gap:12px; }
   .controls-row { display:flex; align-items:center; gap:16px; }
   #slideCounter { font-size:13px; color:#999; min-width:80px; text-align:center; }
@@ -46,7 +58,7 @@
 </style></head>
 <body>
   <header><h1>Keynote Slide Viewer</h1></header>
-  <div id="deckContainer"><div id="deck"><video id="vid" muted playsinline preload="auto"{{POSTER_ATTR}} src="./{{VIDEO_FILENAME}}"></video></div></div>
+  <div id="deckContainer"><div id="deck"><video id="vid" muted playsinline preload="auto"{{POSTER_ATTR}} src="./{{VIDEO_FILENAME}}"></video><div class="navzone left" id="navPrev" aria-label="Previous slide"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></div><div class="navzone right" id="navNext" aria-label="Next slide"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div></div></div>
   <div id="viewer">
     <div class="controls-row"><button id="prevBtn" disabled>&#9664; Previous</button><span id="slideCounter">Slide 0 / 0</span><button id="nextBtn" disabled>Next &#9654;</button><span id="spinner" aria-hidden="true"></span></div>
     <div id="dotStrip"></div>
@@ -86,8 +98,11 @@
       } catch(e){}
     }
     function updateControls(){
-      document.getElementById('prevBtn').disabled = current<=0 || playing;
-      document.getElementById('nextBtn').disabled = current>=N-1 || playing;
+      var atStart = current<=0 || playing, atEnd = current>=N-1 || playing;
+      document.getElementById('prevBtn').disabled = atStart;
+      document.getElementById('nextBtn').disabled = atEnd;
+      var zp = document.getElementById('navPrev'); if (zp) zp.classList.toggle('off', atStart);
+      var zn = document.getElementById('navNext'); if (zn) zn.classList.toggle('off', atEnd);
       document.getElementById('slideCounter').textContent = (current+1)+' of '+N;
       var dots = document.querySelectorAll('.dot');
       for (var k=0;k<dots.length;k++) dots[k].classList.toggle('active', k===current);
@@ -156,6 +171,8 @@
     for (var i=0;i<N;i++){ (function(idx){ var d=document.createElement('button'); d.className='dot'; d.title='Slide '+(idx+1); d.onclick=function(){ jump(idx); }; dotStrip.appendChild(d); })(i); }
     document.getElementById('nextBtn').onclick = next;
     document.getElementById('prevBtn').onclick = prev;
+    document.getElementById('navNext').onclick = next;
+    document.getElementById('navPrev').onclick = prev;
     document.addEventListener('keydown', function(e){ if(e.key==='ArrowRight')next(); if(e.key==='ArrowLeft')prev(); });
 
     // Busy spinner (controls row only) — toggled EXPLICITLY from next()/finish()/
