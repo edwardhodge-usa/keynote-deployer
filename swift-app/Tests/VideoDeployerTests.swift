@@ -187,7 +187,7 @@ struct VideoDeployerTests {
         #expect(errored.called)                               // Step 4 surfaced .error, not stuck .active
     }
 
-    @Test("A6: useFfmpegEncoder UserDefaults flag selects the encoder in .live")
+    @Test(".live prefers the ffmpeg (CRF16) encoder when ffmpeg is installed")
     func live_encoderSelection() {
         let key = "useFfmpegEncoder"
         let prior = UserDefaults.standard.object(forKey: key)
@@ -196,11 +196,21 @@ struct VideoDeployerTests {
             else { UserDefaults.standard.removeObject(forKey: key) }
         }
 
+        // Forcing the flag always selects ffmpeg.
         UserDefaults.standard.set(true, forKey: key)
         #expect(VideoDeployerSeams.live(settings: Self.settings()).encoder is FFmpegVideoEncoder)
 
+        // With the flag OFF, the encoder is now availability-driven: ffmpeg when it's
+        // installed (the new default — constant-quality CRF16), AVFoundation only as
+        // the no-ffmpeg fallback. (The fallback branch isn't unit-tested here: there's
+        // no seam to simulate an absent ffmpeg without a real PATH/binary change.)
         UserDefaults.standard.set(false, forKey: key)
-        #expect(VideoDeployerSeams.live(settings: Self.settings()).encoder is AVFoundationVideoEncoder)
+        let encoder = VideoDeployerSeams.live(settings: Self.settings()).encoder
+        if FFmpegVideoEncoder.isAvailable() {
+            #expect(encoder is FFmpegVideoEncoder)
+        } else {
+            #expect(encoder is AVFoundationVideoEncoder)
+        }
     }
 }
 

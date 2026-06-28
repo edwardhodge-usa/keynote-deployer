@@ -26,14 +26,16 @@ struct FFmpegVideoEncoderTests {
         ])
     }
 
-    @Test func encodeArgsMatchElectron() {
-        // Electron does timestamps.join(',') on JS numbers → "0,2.5,5" (NOT "0.0,2.5,5.0").
+    @Test func encodeArgsAreCrf16BoundedGopWithSlideKeyframes() {
+        // CRF16 constant quality + bounded 2s GOP (-g 60) + forced per-slide keyframes.
+        // force_key_frames CSV uses JS-number formatting → "0,2.5,5" (NOT "0.0,2.5,5.0").
         #expect(FFmpegVideoEncoder.encodeArgs(
             input: "/tmp/in.mp4", output: "/tmp/out.mp4",
             timestamps: [0.0, 2.5, 5.0]) == [
             "-y", "-i", "/tmp/in.mp4",
-            "-c:v", "libx264", "-crf", "18", "-preset", "medium",
+            "-c:v", "libx264", "-crf", "16", "-preset", "medium",
             "-pix_fmt", "yuv420p",
+            "-bf", "0", "-g", "60",
             "-force_key_frames", "0,2.5,5",
             "-movflags", "+faststart", "-an",
             "/tmp/out.mp4",

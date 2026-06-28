@@ -58,7 +58,7 @@
 </style></head>
 <body>
   <header><h1>Keynote Slide Viewer</h1></header>
-  <div id="deckContainer"><div id="deck"><video id="vid" muted playsinline preload="auto"{{POSTER_ATTR}} src="./{{VIDEO_FILENAME}}"></video><div class="navzone left" id="navPrev" aria-label="Previous slide"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></div><div class="navzone right" id="navNext" aria-label="Next slide"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div></div></div>
+  <div id="deckContainer"><div id="deck"><video id="vid" muted playsinline preload="auto"{{POSTER_ATTR}}></video><div class="navzone left" id="navPrev" aria-label="Previous slide"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></div><div class="navzone right" id="navNext" aria-label="Next slide"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div></div></div>
   <div id="viewer">
     <div class="controls-row"><button id="prevBtn" disabled>&#9664; Previous</button><span id="slideCounter">Slide 0 / 0</span><button id="nextBtn" disabled>Next &#9654;</button><span id="spinner" aria-hidden="true"></span></div>
     <div id="dotStrip"></div>
@@ -68,37 +68,46 @@
   <script>
     var TS = {{TS}};
     var N = TS.length, VW={{VW}}, VH={{VH}}, EPS=0.03;
-    // The matched still lands at the TRAILING edge of each slide's hold, so pausing
-    // exactly on TS[i] can show the first frame(s) of the transition OUT. Bias the
-    // REST frame back ~2 frames into the stable hold (clamped ≥ 0). The transition
-    // still plays fully — it completes well before this point.
+    // Bias the rest frame ~2 frames off the matched keyframe into the stable hold.
+    // (Exact per-slide rest placement is imperfect from auto-derivation — that's what
+    // the marker editor is for. The transition smoothness is handled by a bounded GOP
+    // in the encoder, not by this bias.)
     var REST_BIAS = 0.08;
     function restTime(i){ var t = TS[i] - REST_BIAS; return t > 0 ? t : 0; }
     var vid = document.getElementById('vid'), deckContainer = document.getElementById('deckContainer'), loading = document.getElementById('loading');
-    var current = 0, playing = false;
+    // playing = a transition is animating; navBusy = ANY nav in progress incl. the
+    // paintFrame micro-play tail. navBusy is the re-entrancy lock: no nav may start
+    // until the previous one (and its paint) fully completes, so a fast re-tap can't
+    // race the paint's pending pause into the next transition (freeze-halfway bug).
+    var current = 0, playing = false, navBusy = false, paintTimer = null;
     {{SECURE_EMBED_SCRIPT}}
 
     // Rest = the PAUSED video frame, biased a touch before this slide's keyframe.
     function settleOn(i){
-      current = i; playing = false;
+      navBusy = true; current = i; playing = false;
       try { vid.pause(); vid.currentTime = restTime(i); } catch(e){}
-      paintFrame(); setBusy(false);
-      updateControls(); reportHeight();
+      updateControls();
+      paintFrame(function(){ navBusy = false; setBusy(false); updateControls(); reportHeight(); });
     }
     // iOS won't paint a seeked frame on a PAUSED video until it plays, so Prev /
     // dot-jumps changed state but left the previous frame on screen. A ~40ms micro
     // play->pause forces the current frame to render; restTime sits mid-hold so
     // there's no visible motion. The initial load has no user gesture (play() is
-    // blocked there) — the <video poster> covers that first paint instead.
-    function paintFrame(){
+    // blocked there) — the <video poster> covers that first paint instead. The timer
+    // is cancelable and fires `doneCb` exactly once so callers can release navBusy
+    // only after the paint settles.
+    function paintFrame(doneCb){
+      if (paintTimer){ clearTimeout(paintTimer); paintTimer = null; }
+      var settled = false;
+      var done = function(){ if (settled) return; settled = true; paintTimer = null; try { vid.pause(); } catch(e){} if (doneCb) doneCb(); };
       try {
         var p = vid.play();
-        if (p && p.then) { p.then(function(){ setTimeout(function(){ try { vid.pause(); } catch(e){} }, 40); }).catch(function(){}); }
-        else { setTimeout(function(){ try { vid.pause(); } catch(e){} }, 40); }
-      } catch(e){}
+        if (p && p.then) { p.then(function(){ paintTimer = setTimeout(done, 40); }).catch(function(){ done(); }); }
+        else { paintTimer = setTimeout(done, 40); }
+      } catch(e){ done(); }
     }
     function updateControls(){
-      var atStart = current<=0 || playing, atEnd = current>=N-1 || playing;
+      var atStart = current<=0 || playing || navBusy, atEnd = current>=N-1 || playing || navBusy;
       document.getElementById('prevBtn').disabled = atStart;
       document.getElementById('nextBtn').disabled = atEnd;
       var zp = document.getElementById('navPrev'); if (zp) zp.classList.toggle('off', atStart);
@@ -109,8 +118,8 @@
     }
     // Next: play the real transition to the next slide, then pause on its keyframe.
     function next(){
-      if (playing || current>=N-1) return;
-      playing = true; setBusy(true); updateControls();
+      if (navBusy || playing || current>=N-1) return;
+      navBusy = true; playing = true; setBusy(true); updateControls();
       var target = restTime(current+1);
       function go(){
         // iOS WebKit returns vid.currentTime=0 during inline playback inside a
@@ -124,38 +133,69 @@
         // regardless of stop precision. (rAF + timeupdate were both verified dead
         // ends on iOS in this embed: rAF fires but reads currentTime=0; timeupdate
         // barely fires; rVFC.mediaTime is unreliable too — wall-clock is the anchor.)
-        var done = false, startPos = restTime(current), rate = vid.playbackRate || 1, capTimer = null;
-        var t0 = Date.now(), budgetMs = Math.max(250, (target - startPos) * 1000 / rate) + 350;
+        var done = false, startPos = restTime(current), rate = vid.playbackRate || 1, capTimer = null, safety = null;
+        // Budget = how long the transition should take, + a small margin. Count only
+        // ACTUAL playing time toward it: on the FIRST visit to a slide the region isn't
+        // buffered yet, so playback stalls ('waiting') mid-transition. A clock anchored
+        // to real time would keep elapsing through the stall and fire finish() before
+        // the transition renders → it stutters then SKIPS to the rest frame. Pausing
+        // the clock on 'waiting'/'stalled' and resuming on 'playing' makes the budget
+        // track real playback, so the transition ALWAYS completes (and a buffered
+        // replay is smooth — which is exactly why go-back-and-retry already worked).
+        var budgetMs = Math.max(200, (target - startPos) * 1000 / rate) + 120;
+        var accum = 0, lastResume = 0, running = false;
+        function clockResume(){ if (!running){ running = true; lastResume = Date.now(); } }
+        function clockPause(){ if (running){ accum += Date.now() - lastResume; running = false; } }
+        function elapsed(){ return accum + (running ? Date.now() - lastResume : 0); }
+        function cleanup(){
+          vid.removeEventListener('playing', clockResume);
+          vid.removeEventListener('waiting', clockPause);
+          vid.removeEventListener('stalled', clockPause);
+        }
         function finish(){
           if (done) return; done = true;
           if (capTimer){ clearInterval(capTimer); capTimer = null; }
+          if (safety){ clearTimeout(safety); safety = null; }
+          cleanup();
           vid.pause(); current++; playing = false;
           try { vid.currentTime = restTime(current); } catch(e){}
-          setBusy(false); updateControls(); reportHeight();
+          updateControls(); reportHeight();   // new slide number; controls stay disabled (navBusy still true)
+          // Force iOS to repaint the settled rest frame, and hold navBusy until that
+          // 40ms paint settles so a fast re-tap can't race it into the next transition.
+          paintFrame(function(){ navBusy = false; setBusy(false); updateControls(); });
         }
         function vf(now, meta){
           if (done || !playing) return;
+          clockResume();   // rVFC firing == frames are presenting == playing
           var mt = (meta && meta.mediaTime != null) ? meta.mediaTime : 0;
           if (mt >= target - EPS){ finish(); return; }
           if (vid.requestVideoFrameCallback) vid.requestVideoFrameCallback(vf);
         }
+        vid.addEventListener('playing', clockResume);
+        vid.addEventListener('waiting', clockPause);
+        vid.addEventListener('stalled', clockPause);
         capTimer = setInterval(function(){
           if (done || !playing){ if (capTimer){ clearInterval(capTimer); capTimer = null; } return; }
-          if (vid.ended || Date.now() - t0 >= budgetMs) finish();
+          if (vid.ended || elapsed() >= budgetMs) finish();
         }, 50);
+        // Hard safety: even counting only playing time, never hang nav (true stall).
+        safety = setTimeout(function(){ if (!done) finish(); }, budgetMs + 8000);
         var pp = vid.play(); if (pp && pp.catch) pp.catch(function(){});
         if (vid.requestVideoFrameCallback) vid.requestVideoFrameCallback(vf);
       }
       // Don't start the transition until any in-progress seek settles AND we're
       // parked at this slide's frame — otherwise play() races the seek and freezes.
       if (vid.seeking || Math.abs(vid.currentTime - restTime(current)) > 0.1){
-        var onSeeked = function(){ vid.removeEventListener('seeked', onSeeked); go(); };
-        vid.addEventListener('seeked', onSeeked);
-        try { vid.currentTime = restTime(current); } catch(e){ vid.removeEventListener('seeked', onSeeked); go(); }
+        var proceeded = false;
+        var proceed = function(){ if (proceeded) return; proceeded = true; vid.removeEventListener('seeked', proceed); go(); };
+        vid.addEventListener('seeked', proceed);
+        try { vid.currentTime = restTime(current); } catch(e){ proceed(); }
+        // iOS may not fire 'seeked' for a seek on a paused video → don't hang waiting.
+        setTimeout(proceed, 250);
       } else { go(); }
     }
-    function prev(){ if (playing || current<=0) return; settleOn(current-1); }
-    function jump(i){ if (playing) return; settleOn(i); }
+    function prev(){ if (navBusy || playing || current<=0) return; settleOn(current-1); }
+    function jump(i){ if (navBusy || playing) return; settleOn(i); }
 
     function reportHeight(){
       if (window.self===window.top) return;
@@ -186,6 +226,27 @@
       if (document.body.classList.contains('in-iframe')) deckContainer.style.maxWidth = VW+'px';
       settleOn(0); setTimeout(reportHeight,250); setTimeout(reportHeight,700);
     }
+    // Download the WHOLE deck up front (into an in-memory blob) and play from that,
+    // so the FIRST visit to any slide is as smooth as a buffered replay — there is no
+    // mid-playback network fetch left to stall a transition (the cause of the
+    // first-pass stutter/skip; replays were already smooth because the bytes were
+    // cached). Falls back to normal streaming if the fetch fails.
+    (function loadDeck(){
+      var url = "./{{VIDEO_FILENAME}}", lt = document.getElementById('loadingText');
+      var stream = function(){ if (!vid.src) vid.src = url; };
+      try {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true); xhr.responseType = 'blob';
+        xhr.onprogress = function(e){ if (e.lengthComputable && lt) lt.textContent = 'Loading presentation… ' + Math.round(e.loaded / e.total * 100) + '%'; };
+        xhr.onload = function(){
+          if (xhr.status >= 200 && xhr.status < 300 && xhr.response){
+            try { vid.src = URL.createObjectURL(xhr.response); } catch(e){ stream(); }
+          } else { stream(); }
+        };
+        xhr.onerror = stream; xhr.onabort = stream;
+        xhr.send();
+      } catch(e){ stream(); }
+    })();
     if (vid.readyState >= 1) startUp(); else vid.addEventListener('loadedmetadata', startUp, { once:true });
     vid.addEventListener('error', function(){ document.getElementById('loadingText').textContent='Video failed to load.'; });
   </script>

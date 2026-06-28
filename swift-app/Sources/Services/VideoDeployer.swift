@@ -135,13 +135,17 @@ struct VideoDeployerSeams: Sendable {
                                            _ secureEmbed: Bool,
                                            _ onProgress: @Sendable (ProcessingStep) -> Void) async throws -> String
 
-    /// Default seam. Encoder chosen by the hidden `useFfmpegEncoder` UserDefaults
-    /// flag (A6, default = AVFoundation). Deploy mirrors the HTML `DeployView`:
-    /// `ensureProject` → `VercelDeployer.deploy` → `resolveProductionUrl` with the
-    /// established `https://<name>.vercel.app` fallback.
+    /// Default seam. Encoder = ffmpeg (constant-quality CRF16 x264, ~70% smaller +
+    /// faster-loading decks) whenever ffmpeg is installed; falls back to the
+    /// dependency-free AVFoundation encoder only when it isn't. The hidden
+    /// `useFfmpegEncoder` flag force-selects ffmpeg even if the availability probe is
+    /// imperfect. Deploy mirrors the HTML `DeployView`: `ensureProject` →
+    /// `VercelDeployer.deploy` → `resolveProductionUrl` with the established
+    /// `https://<name>.vercel.app` fallback.
     static func live(settings: AppSettings) -> VideoDeployerSeams {
-        let useFfmpeg = UserDefaults.standard.bool(forKey: "useFfmpegEncoder")
-        let encoder: VideoEncoder = useFfmpeg ? FFmpegVideoEncoder() : AVFoundationVideoEncoder()
+        let forceFfmpeg = UserDefaults.standard.bool(forKey: "useFfmpegEncoder")
+        let encoder: VideoEncoder = (forceFfmpeg || FFmpegVideoEncoder.isAvailable())
+            ? FFmpegVideoEncoder() : AVFoundationVideoEncoder()
 
         let token = settings.vercelToken
         let teamId = settings.vercelTeamId

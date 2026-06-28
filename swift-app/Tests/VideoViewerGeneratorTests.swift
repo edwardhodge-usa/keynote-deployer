@@ -115,14 +115,16 @@ struct VideoViewerGeneratorTests {
         #expect(!off.contains("preventDefault"))
     }
 
-    /// filename + width/height land in src="./<file>" and the aspect-ratio CSS
-    /// + JS vars. Confirms all token sites fill.
+    /// filename + width/height land in the JS blob loader URL ("./<file>") and the
+    /// aspect-ratio CSS + JS vars. (The deck is fetched into memory and played from a
+    /// blob, so the filename is NOT a static <video src> attribute anymore.)
     @Test func filenameAndDimensionsLandInTokens() {
         let out = VideoViewerGenerator.generate(
             videoFilename: "myDeck.mp4", secureEmbed: false,
             timestamps: [0], videoWidth: 1600, videoHeight: 900
         )
-        #expect(out.contains("src=\"./myDeck.mp4\""))
+        #expect(out.contains("\"./myDeck.mp4\""))   // blob loader URL
+        #expect(!out.contains("src=\"./myDeck.mp4\""))   // no static src attribute
         #expect(out.contains("aspect-ratio:1600/900"))
         #expect(out.contains("VW=1600, VH=900"))
         #expect(out.contains("max-width:1600px"))
@@ -131,25 +133,28 @@ struct VideoViewerGeneratorTests {
         #expect(!out.contains("}}"))
     }
 
-    /// posterFilename nil (default) → no poster attribute, and the <video> tag is
-    /// byte-identical to the pre-poster form (the {{POSTER_ATTR}} token collapses to
-    /// ""). This is what keeps the existing goldens valid without regeneration.
+    /// posterFilename nil (default) → no poster attribute on the <video>, and no
+    /// static src either (the deck is loaded via JS). The {{POSTER_ATTR}} token
+    /// collapses to "".
     @Test func noPosterByDefault() {
         let out = VideoViewerGenerator.generate(
             videoFilename: "deck.mp4", secureEmbed: false, timestamps: [0]
         )
         #expect(!out.contains("poster="))
-        #expect(out.contains("preload=\"auto\" src=\"./deck.mp4\""))
+        #expect(out.contains("muted playsinline preload=\"auto\"></video>"))
+        #expect(out.contains("\"./deck.mp4\""))   // filename in the JS loader
         #expect(!out.contains("{{POSTER_ATTR}}"))
     }
 
-    /// posterFilename present → emits ` poster="./<file>"` on the <video>, before src.
+    /// posterFilename present → emits ` poster="./<file>"` on the <video> (still a
+    /// static attribute); the deck src is set later in JS, so no static src.
     @Test func posterAttributeWhenProvided() {
         let out = VideoViewerGenerator.generate(
             videoFilename: "deck.mp4", secureEmbed: false, timestamps: [0],
             videoWidth: 1920, videoHeight: 1080, posterFilename: "poster.jpg"
         )
-        #expect(out.contains("preload=\"auto\" poster=\"./poster.jpg\" src=\"./deck.mp4\""))
+        #expect(out.contains("preload=\"auto\" poster=\"./poster.jpg\"></video>"))
+        #expect(!out.contains("src=\"./deck.mp4\""))
     }
 
     /// Default parameters mirror Electron (1920x1080) when omitted.
