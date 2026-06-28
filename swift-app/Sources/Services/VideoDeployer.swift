@@ -47,6 +47,18 @@ enum VideoDeployer {
                        settings: AppSettings,
                        seams: VideoDeployerSeams,
                        onProgress: @Sendable (ProcessingStep) -> Void) async throws -> VideoDeployResult {
+        // Fix 5: defense-in-depth — guard the forced-keyframe / {{TS}} / poster path
+        // against a future UI-gate regression. The editor button is already disabled
+        // for non-monotonic inputs; this makes the deploy boundary explicit.
+        guard !editedTimestamps.isEmpty else {
+            throw VideoDeployError.invalidMarkers(
+                "Marker list is empty — at least one slide is required.")
+        }
+        guard zip(editedTimestamps, editedTimestamps.dropFirst()).allSatisfy({ $0 < $1 }) else {
+            throw VideoDeployError.invalidMarkers(
+                "Marker list is not strictly increasing — re-open the marker editor.")
+        }
+
         let videoURL = URL(fileURLWithPath: request.videoPath)
 
         let tempDir = "/tmp/keynote-deployer-video-\(Int(Date().timeIntervalSince1970))-\(UUID().uuidString.prefix(8))"
@@ -196,6 +208,9 @@ struct VideoDeployResult: Sendable {
 enum VideoDeployError: Error, LocalizedError, Sendable, Equatable {
     case missingVercelToken
     case deployFailed(String)
+    /// The edited marker list is empty or not strictly increasing. The editor UI
+    /// gate prevents this in normal use; this case guards against regressions.
+    case invalidMarkers(String)
 
     var errorDescription: String? {
         switch self {
@@ -203,6 +218,8 @@ enum VideoDeployError: Error, LocalizedError, Sendable, Equatable {
             return "No Vercel token configured. Add your Vercel token in Settings before deploying."
         case .deployFailed(let detail):
             return "Vercel deploy failed: \(detail)"
+        case .invalidMarkers(let detail):
+            return "Invalid marker list: \(detail)"
         }
     }
 }

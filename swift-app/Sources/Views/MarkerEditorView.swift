@@ -131,7 +131,11 @@ struct MarkerEditorView: View {
     }
 
     private func addAtPlayhead() {
-        let t = MarkerEditorLogic.clamp(selectedTime.wrappedValue, index: selected, markers: markers, duration: duration)
+        // Use the midpoint between the selected marker and its next neighbor (or
+        // duration). This is always strictly between neighbors → insert keeps the
+        // array monotonic. The old code clamped `selectedTime` (= markers[selected]),
+        // producing a duplicate timestamp and a non-monotonic array.
+        let t = MarkerEditorLogic.insertionTime(after: selected, markers: markers, duration: duration)
         let (m, idx) = MarkerEditorLogic.insert(t, into: markers)
         markers = m
         selected = idx
@@ -142,6 +146,9 @@ struct MarkerEditorView: View {
         let (m, sel) = MarkerEditorLogic.remove(at: selected, from: markers)
         markers = m
         selected = sel
+        // Prune stale thumb keys for the dropped top index so the dict doesn't
+        // retain an image keyed at a now-out-of-range index.
+        thumbs = thumbs.filter { $0.key < markers.count }
         Task { await regenerateThumbsFrom(sel) }
     }
 

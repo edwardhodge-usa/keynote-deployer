@@ -47,4 +47,38 @@ enum MarkerEditorLogic {
     static func isMonotonic(_ markers: [Double]) -> Bool {
         zip(markers, markers.dropFirst()).allSatisfy { $0 < $1 }
     }
+
+    /// Time at which "Add" should insert a new marker after `selected`: the midpoint
+    /// between markers[selected] and its next neighbor, or — for the last marker —
+    /// the midpoint toward `duration`. Caller inserts this (it's strictly between
+    /// neighbors, so the array stays monotonic).
+    static func insertionTime(after selected: Int, markers: [Double], duration: Double) -> Double {
+        guard !markers.isEmpty, markers.indices.contains(selected) else {
+            return duration / 2
+        }
+        if selected < markers.count - 1 {
+            return (markers[selected] + markers[selected + 1]) / 2
+        } else {
+            return (markers[selected] + duration) / 2
+        }
+    }
+
+    /// Snap each marker to its nearest frame (round(t*fps)/fps) and return a strictly
+    /// increasing array: if a snapped value is <= the previous, bump it to previous +
+    /// one frame. Guarantees frame-distinct, monotonic keyframes. fps must be > 0.
+    static func quantizeToFrames(_ markers: [Double], fps: Double) -> [Double] {
+        guard fps > 0 else { return markers }
+        var result: [Double] = []
+        for t in markers {
+            let snapped = (t * fps).rounded() / fps
+            if let prev = result.last, snapped <= prev {
+                // Bump to prev + one frame, re-snapped to grid
+                let bumped = ((prev + 1.0 / fps) * fps).rounded() / fps
+                result.append(bumped)
+            } else {
+                result.append(snapped)
+            }
+        }
+        return result
+    }
 }

@@ -390,8 +390,17 @@ struct VideoDeployView: View {
 
             HStack(spacing: 12) {
                 Button("Start Over") { reset() }
-                Button("Retry") { startAnalyze() }
-                    .buttonStyle(.borderedProminent)
+                // Fix 4: if we already have an analysis + edited markers, skip
+                // re-analysis and go straight back to the marker editor. Only fall
+                // back to a full re-analyze when there's nothing to restore.
+                Button("Retry") {
+                    if analysis != nil && !markers.isEmpty {
+                        phase = .reviewMarkers
+                    } else {
+                        startAnalyze()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
             }
         }
     }
@@ -559,6 +568,13 @@ struct VideoDeployView: View {
         guard let request = currentRequest, let analysis else { return }
         let settings = (try? FileOperations.loadSettings()) ?? .default
 
+        // Fix 1: write edits back immediately so a cancel→reviewMarkers re-seeds
+        // the editor with what the user last set, not the stale analysis seed.
+        // Fix 3: quantize to the frame grid so the encoder keyframe and the viewer's
+        // {{TS}} rest point are guaranteed to land on the same decoded frame.
+        let quantized = MarkerEditorLogic.quantizeToFrames(editedTimestamps, fps: analysis.fps)
+        markers = quantized
+
         phase = .deploying
         errorMessage = ""
 
@@ -567,7 +583,7 @@ struct VideoDeployView: View {
                 let r = try await VideoDeployer.deploy(
                     request,
                     analysis: analysis,
-                    editedTimestamps: editedTimestamps,
+                    editedTimestamps: quantized,
                     settings: settings,
                     seams: .live(settings: settings),
                     onProgress: { step in Task { @MainActor in updateStep(step) } })
