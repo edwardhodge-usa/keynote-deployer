@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import AVKit
+import AVFoundation
 import UniformTypeIdentifiers
 
 /// AppKit `AVPlayerView` wrapped for SwiftUI. Used instead of SwiftUI's
@@ -81,7 +82,7 @@ struct VideoDeployView: View {
 
     @Environment(\.modelContext) private var modelContext
 
-    enum Phase { case drop, confirm, deploying, complete, error }
+    enum Phase { case drop, confirm, analyzing, reviewMarkers, deploying, complete, error }
 
     // Build the 4 video-pipeline steps (ids 1–4) the deployer emits.
     private static func freshSteps() -> [ProcessingStep] {
@@ -111,6 +112,10 @@ struct VideoDeployView: View {
     @State private var isDropTargeted = false
     @State private var copied: String?
     @State private var deployTask: Task<Void, Never>?
+    @State private var analysis: VideoAnalysis?
+    @State private var markers: [Double] = []
+    @State private var videoDuration: Double = 0
+    @State private var currentRequest: VideoDeployRequest?
     /// The preset (from a Projects "Update") is one-shot: once applied to a video,
     /// a subsequent video in the same session must NOT inherit it (it would deploy
     /// over the wrong Vercel project). `presetProjectName` is frozen at construction,
@@ -129,6 +134,8 @@ struct VideoDeployView: View {
                 switch phase {
                 case .drop: dropPhase
                 case .confirm: confirmPhase
+                case .analyzing: analyzingPhase
+                case .reviewMarkers: reviewMarkersPhase
                 case .deploying: deployingPhase
                 case .complete: completePhase
                 case .error: errorPhase
@@ -253,10 +260,41 @@ struct VideoDeployView: View {
 
             HStack(spacing: 12) {
                 Button("Back") { reset() }
-                Button("Deploy") { startDeploy() }
+                Button("Review Markers") { startAnalyze() }
                     .buttonStyle(.borderedProminent)
                     .disabled(!canDeploy)
             }
+        }
+    }
+
+    // MARK: - Analyzing Phase
+
+    private var analyzingPhase: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Analyzing…")
+                .font(.title2.weight(.semibold))
+            Text("Matching stills to the video to seed the slide markers.")
+                .foregroundStyle(.secondary)
+            DeployProgressView(steps: steps)
+            Button("Cancel") { deployTask?.cancel() }
+                .controlSize(.small)
+        }
+    }
+
+    // MARK: - Review Markers Phase
+
+    @ViewBuilder
+    private var reviewMarkersPhase: some View {
+        if let player, let videoPath {
+            MarkerEditorView(
+                player: player,
+                videoURL: URL(fileURLWithPath: videoPath),
+                duration: videoDuration,
+                initialMarkers: markers,
+                onConfirm: { edited in startDeploy(editedTimestamps: edited) },
+                onBack: { phase = .confirm })
+        } else {
+            ProgressView()
         }
     }
 
@@ -352,7 +390,7 @@ struct VideoDeployView: View {
 
             HStack(spacing: 12) {
                 Button("Start Over") { reset() }
-                Button("Retry") { startDeploy() }
+                Button("Retry") { startAnalyze() }
                     .buttonStyle(.borderedProminent)
             }
         }
@@ -471,10 +509,8 @@ struct VideoDeployView: View {
         }
     }
 
-    private func startDeploy() {
+    private func startAnalyze() {
         guard let videoPath else { return }
-
-        // Mirror DeployView: pre-check the token with an actionable error.
         let settings = (try? FileOperations.loadSettings()) ?? .default
         guard !settings.vercelToken.isEmpty else {
             errorMessage = "Vercel token not configured. Go to Settings first."
@@ -482,7 +518,7 @@ struct VideoDeployView: View {
             return
         }
 
-        phase = .deploying
+        phase = .analyzing
         steps = Self.freshSteps()
         errorMessage = ""
 
@@ -490,28 +526,56 @@ struct VideoDeployView: View {
         let request = VideoDeployRequest(
             videoPath: videoPath,
             stillPaths: stillPaths,
-            fps: max(1, fps),                                  // guard fps<=0 (TextField bypasses the Stepper range)
+            fps: max(1, fps),
             projectName: projectName.trimmingCharacters(in: .whitespaces),
             title: cleanTitle,
             secureEmbed: secureEmbed)
+        currentRequest = request
+
+        deployTask = Task {
+            do {
+                let a = try await VideoDeployer.analyze(
+                    request,
+                    seams: .live(settings: settings),
+                    onProgress: { step in Task { @MainActor in updateStep(step) } })
+                // Editor needs the video's total duration for the scrubber max.
+                let dur = (try? await AVURLAsset(url: URL(fileURLWithPath: videoPath)).load(.duration))
+                let durSeconds = dur.map { CMTimeGetSeconds($0) } ?? (a.timestamps.last ?? 0)
+                await MainActor.run {
+                    analysis = a
+                    markers = a.timestamps
+                    videoDuration = durSeconds.isFinite && durSeconds > 0 ? durSeconds : (a.timestamps.last ?? 0)
+                    phase = .reviewMarkers
+                }
+            } catch is CancellationError {
+                await MainActor.run { phase = .confirm }
+            } catch {
+                await MainActor.run { errorMessage = error.localizedDescription; phase = .error }
+            }
+        }
+    }
+
+    private func startDeploy(editedTimestamps: [Double]) {
+        guard let request = currentRequest, let analysis else { return }
+        let settings = (try? FileOperations.loadSettings()) ?? .default
+
+        phase = .deploying
+        errorMessage = ""
 
         deployTask = Task {
             do {
                 let r = try await VideoDeployer.deploy(
                     request,
+                    analysis: analysis,
+                    editedTimestamps: editedTimestamps,
                     settings: settings,
                     seams: .live(settings: settings),
-                    onProgress: { step in
-                        Task { @MainActor in updateStep(step) }
-                    })
+                    onProgress: { step in Task { @MainActor in updateStep(step) } })
                 await MainActor.run { finish(r, settings: settings) }
             } catch is CancellationError {
-                await MainActor.run { phase = .confirm }   // coherent state preserved (video+stills+name intact)
+                await MainActor.run { phase = .reviewMarkers }   // keep the edited markers
             } catch {
-                await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    phase = .error
-                }
+                await MainActor.run { errorMessage = error.localizedDescription; phase = .error }
             }
         }
     }
@@ -577,5 +641,9 @@ struct VideoDeployView: View {
         probeError = nil
         isProbing = false
         copied = nil
+        analysis = nil
+        markers = []
+        videoDuration = 0
+        currentRequest = nil
     }
 }
