@@ -106,9 +106,13 @@ struct VideoDeployerTests {
         }
 
         let completed = CompletedSink()
+        let onProgress: @Sendable (ProcessingStep) -> Void = { step in
+            if step.status == .completed { completed.add(step.id) }
+        }
+        let analysis = try await VideoDeployer.analyze(Self.request(), seams: seams, onProgress: onProgress)
         let result = try await VideoDeployer.deploy(
-            Self.request(), settings: Self.settings(), seams: seams,
-            onProgress: { step in if step.status == .completed { completed.add(step.id) } })
+            Self.request(), analysis: analysis, editedTimestamps: analysis.timestamps,
+            settings: Self.settings(), seams: seams, onProgress: onProgress)
 
         // Step order: probe first, encode after all samples.
         #expect(enc.calls.first == "probe")
@@ -137,9 +141,11 @@ struct VideoDeployerTests {
             flag.mark(); return "https://\(name).vercel.app"
         }
 
+        let analysis = try await VideoDeployer.analyze(Self.request(), seams: seams, onProgress: { _ in })
         await #expect(throws: VideoDeployError.self) {
             _ = try await VideoDeployer.deploy(
-                Self.request(), settings: Self.settings(token: ""), seams: seams,
+                Self.request(), analysis: analysis, editedTimestamps: analysis.timestamps,
+                settings: Self.settings(token: ""), seams: seams,
                 onProgress: { _ in })
         }
         #expect(flag.called == false)
@@ -150,8 +156,10 @@ struct VideoDeployerTests {
         let before = Self.tempDirs()
         let enc = Self.makeStub()
         let seams = VideoDeployerSeams(encoder: enc) { _, name, _, _ in "https://\(name).vercel.app" }
+        let analysis = try await VideoDeployer.analyze(Self.request(), seams: seams, onProgress: { _ in })
         _ = try await VideoDeployer.deploy(
-            Self.request(), settings: Self.settings(), seams: seams, onProgress: { _ in })
+            Self.request(), analysis: analysis, editedTimestamps: analysis.timestamps,
+            settings: Self.settings(), seams: seams, onProgress: { _ in })
         // No NEW pipeline temp dir survives.
         #expect(Self.tempDirs().subtracting(before).isEmpty)
     }
@@ -163,9 +171,11 @@ struct VideoDeployerTests {
         let enc = Self.makeStub(encodeError: Boom())
         let seams = VideoDeployerSeams(encoder: enc) { _, name, _, _ in "https://\(name).vercel.app" }
 
+        let analysis = try await VideoDeployer.analyze(Self.request(), seams: seams, onProgress: { _ in })
         await #expect(throws: Boom.self) {
             _ = try await VideoDeployer.deploy(
-                Self.request(), settings: Self.settings(), seams: seams, onProgress: { _ in })
+                Self.request(), analysis: analysis, editedTimestamps: analysis.timestamps,
+                settings: Self.settings(), seams: seams, onProgress: { _ in })
         }
         #expect(Self.tempDirs().subtracting(before).isEmpty)
     }
@@ -178,9 +188,11 @@ struct VideoDeployerTests {
         let seams = VideoDeployerSeams(encoder: enc) { _, _, _, _ in throw Boom() }
         let errored = DeployFlag()
 
+        let analysis = try await VideoDeployer.analyze(Self.request(), seams: seams, onProgress: { _ in })
         await #expect(throws: Boom.self) {
             _ = try await VideoDeployer.deploy(
-                Self.request(), settings: Self.settings(), seams: seams,
+                Self.request(), analysis: analysis, editedTimestamps: analysis.timestamps,
+                settings: Self.settings(), seams: seams,
                 onProgress: { s in if s.id == 4 && s.status == .error { errored.mark() } })
         }
         #expect(Self.tempDirs().subtracting(before).isEmpty)  // defer cleaned the late-throw path
@@ -211,6 +223,40 @@ struct VideoDeployerTests {
         } else {
             #expect(encoder is AVFoundationVideoEncoder)
         }
+    }
+
+    @Test("analyze returns the seed analysis; deploy honors editedTimestamps")
+    func analyzeThenDeployUsesEditedTimestamps() async throws {
+        // 3-frame video; 2 stills matching frames 0 and 2 → seed timestamps [0, 2/fps].
+        let encoder = StubEncoder(
+            videoURL: Self.videoURL,
+            frameGrids: [[0], [1], [0]],
+            stillGridByPath: [Self.stillURL("a.png").path: [0],
+                              Self.stillURL("b.png").path: [0]])
+        let flag = DeployFlag()
+        let seams = VideoDeployerSeams(encoder: encoder) { _, name, _, _ in
+            flag.mark(); return "https://\(name).vercel.app"
+        }
+        let request = VideoDeployRequest(
+            videoPath: Self.videoURL.path,
+            stillPaths: [Self.stillURL("a.png").path, Self.stillURL("b.png").path],
+            fps: 30, projectName: "kd-sec7", title: "deck", secureEmbed: false)
+
+        let analysis = try await VideoDeployer.analyze(request, seams: seams) { _ in }
+        #expect(analysis.slideCount == 2)
+        #expect(analysis.timestamps.count == 2)
+
+        // The human edits the markers (e.g. adds one → 3 slides).
+        let edited = [0.0, 0.05, 0.1]
+        var settings = AppSettings.default
+        settings.vercelToken = "tok"
+        let result = try await VideoDeployer.deploy(
+            request, analysis: analysis, editedTimestamps: edited,
+            settings: settings, seams: seams) { _ in }
+
+        #expect(flag.called)
+        #expect(result.slideCount == 3)            // follows editedTimestamps.count
+        #expect(encoder.calls.contains("encode"))
     }
 }
 

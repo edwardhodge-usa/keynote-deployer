@@ -10,32 +10,20 @@ import Foundation
 /// View — not this deployer — owns `HistoryEntry` persistence and clipboard copy.
 enum VideoDeployer {
 
-    static func deploy(_ request: VideoDeployRequest,
-                       settings: AppSettings,
-                       seams: VideoDeployerSeams,
-                       onProgress: @Sendable (ProcessingStep) -> Void) async throws -> VideoDeployResult {
+    /// Step 1 only: probe + DP-match the stills → seed `VideoAnalysis`. The seed
+    /// timestamps become the initial markers the user reviews before encode.
+    static func analyze(_ request: VideoDeployRequest,
+                        seams: VideoDeployerSeams,
+                        onProgress: @Sendable (ProcessingStep) -> Void) async throws -> VideoAnalysis {
         let videoURL = URL(fileURLWithPath: request.videoPath)
         let stillURLs = request.stillPaths.map { URL(fileURLWithPath: $0) }
 
-        // ── Step 1 — Analyze ────────────────────────────────────────────────
-        // Temp dir under the literal /tmp (matches Electron). Install cleanup
-        // IMMEDIATELY (A4): a throw or cancel must not strand GB of video in /tmp.
-        let tempDir = "/tmp/keynote-deployer-video-\(Int(Date().timeIntervalSince1970))-\(UUID().uuidString.prefix(8))"
-        try FileManager.default.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(atPath: tempDir) }
-
         onProgress(ProcessingStep(id: 1, label: "Analyze video", detail: "Probing video…", status: .active))
-        // `derive` is the single probe site — it probes internally (its dims are the
-        // ones used) and rejects VFR / corrupt / no-track inputs before any sampling,
-        // so a standalone probe here would only duplicate work (an ffprobe subprocess
-        // on the ffmpeg path). Spec §07 instructed an explicit probe; removed per
-        // review (Important #2) as a redundant call.
         let analysis = try await VideoTimestampDeriver.derive(
             encoder: seams.encoder,
             videoURL: videoURL,
             stillURLs: stillURLs,
             fps: request.fps,
-            // Capture nothing mutable (Swift 6 @Sendable): rebuild the step each tick.
             onProgress: { p in
                 onProgress(ProcessingStep(
                     id: 1, label: "Analyze video",
@@ -47,29 +35,42 @@ enum VideoDeployer {
             id: 1, label: "Analyze video",
             detail: "\(slideCount) slide\(slideCount == 1 ? "" : "s")",
             status: .completed))
+        return analysis
+    }
 
-        // ── Step 2 — Encode ─────────────────────────────────────────────────
+    /// Steps 2–4: encode (forced keyframes at the EDITED markers) → generate the
+    /// viewer (the same edited markers as {{TS}}) → deploy to Vercel. `width/height/
+    /// fps` come from the seed `analysis`; the slide count follows the edited markers.
+    static func deploy(_ request: VideoDeployRequest,
+                       analysis: VideoAnalysis,
+                       editedTimestamps: [Double],
+                       settings: AppSettings,
+                       seams: VideoDeployerSeams,
+                       onProgress: @Sendable (ProcessingStep) -> Void) async throws -> VideoDeployResult {
+        let videoURL = URL(fileURLWithPath: request.videoPath)
+
+        let tempDir = "/tmp/keynote-deployer-video-\(Int(Date().timeIntervalSince1970))-\(UUID().uuidString.prefix(8))"
+        try FileManager.default.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: tempDir) }
+
+        // ── Step 2 — Encode (forced keyframes at the edited markers) ────────────
         var step2 = ProcessingStep(id: 2, label: "Encode video", detail: "Re-encoding with per-slide keyframes…", status: .active)
         onProgress(step2)
         let outputURL = URL(fileURLWithPath: tempDir).appendingPathComponent("deck.mp4")
-        try await seams.encoder.encodeWithKeyframes(input: videoURL, output: outputURL, timestamps: analysis.timestamps, fps: analysis.fps)
+        try await seams.encoder.encodeWithKeyframes(input: videoURL, output: outputURL, timestamps: editedTimestamps, fps: analysis.fps)
         step2.status = .completed
         onProgress(step2)
 
-        // ── Step 3 — Generate ───────────────────────────────────────────────
+        // ── Step 3 — Generate ───────────────────────────────────────────────────
         var step3 = ProcessingStep(id: 3, label: "Generate viewer", detail: "Building index.html…", status: .active)
         onProgress(step3)
-        // Best-effort poster = slide 1's rest frame, so the viewer's first paint
-        // shows slide 1 instead of black (iOS has no gesture to micro-play at load).
-        // restTime mirrors the viewer's REST_BIAS (0.08). A failure here must NOT
-        // fail the deploy — the viewer works without a poster, just black-on-load.
+        // Poster = slide 1's marker frame EXACTLY (REST_BIAS retired to 0 — the marker
+        // IS the rest frame). Best-effort: a failure degrades to no-poster, never fails.
         var posterFilename: String? = nil
-        if let firstTimestamp = analysis.timestamps.first {
+        if let firstTimestamp = editedTimestamps.first {
             let posterURL = URL(fileURLWithPath: tempDir).appendingPathComponent("poster.jpg")
             do {
-                try await VideoPoster.extract(from: outputURL,
-                                              atSeconds: max(0, firstTimestamp - 0.08),
-                                              to: posterURL)
+                try await VideoPoster.extract(from: outputURL, atSeconds: max(0, firstTimestamp), to: posterURL)
                 posterFilename = "poster.jpg"
             } catch {
                 posterFilename = nil
@@ -78,7 +79,7 @@ enum VideoDeployer {
         let html = VideoViewerGenerator.generate(
             videoFilename: "deck.mp4",
             secureEmbed: request.secureEmbed,
-            timestamps: analysis.timestamps,
+            timestamps: editedTimestamps,
             videoWidth: analysis.width,
             videoHeight: analysis.height,
             posterFilename: posterFilename)
@@ -87,9 +88,8 @@ enum VideoDeployer {
         step3.status = .completed
         onProgress(step3)
 
-        // ── Step 4 — Deploy ─────────────────────────────────────────────────
+        // ── Step 4 — Deploy ───────────────────────────────────────────────────────
         var step4 = ProcessingStep(id: 4, label: "Deploy to Vercel", detail: "Deploying…", status: .active)
-        // Guard the token BEFORE any deploy work fires.
         guard !settings.vercelToken.isEmpty else {
             step4.status = .error
             step4.error = VideoDeployError.missingVercelToken.errorDescription
@@ -101,7 +101,6 @@ enum VideoDeployer {
         do {
             url = try await seams.ensureProjectAndDeploy(tempDir, request.projectName, request.secureEmbed, onProgress)
         } catch {
-            // Don't leave Step 4 spinning .active on a real Vercel failure (review Minor #4).
             onProgress(ProcessingStep(id: 4, label: "Deploy to Vercel", detail: "Deploy failed",
                                       status: .error, error: error.localizedDescription))
             throw error
@@ -110,13 +109,11 @@ enum VideoDeployer {
         step4.status = .completed
         onProgress(step4)
 
-        // folderPath = the SOURCE video path (the temp dir is deleted); the View
-        // sets HistoryEntry.folderPath = videoPath, fixesApplied = 0.
         return VideoDeployResult(
             url: url,
             projectName: request.projectName,
             title: request.title,
-            slideCount: analysis.slideCount,
+            slideCount: editedTimestamps.count,
             width: analysis.width,
             height: analysis.height,
             folderPath: request.videoPath)
