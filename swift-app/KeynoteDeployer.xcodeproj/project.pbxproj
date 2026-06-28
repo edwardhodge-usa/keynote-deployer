@@ -14,6 +14,7 @@
 		13F48A1926D584294516EEE0 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3C9945227E19D94B300923C /* SidebarView.swift */; };
 		14D97A0EC991F473EF8342A1 /* VideoDeployView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E292C5A2FD9F714EE8576294 /* VideoDeployView.swift */; };
 		15125B060EAC0C268F273761 /* ProjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A857D151061C711E9B9957C8 /* ProjectsView.swift */; };
+		15701A796DD5D2245EB5BC02 /* VideoPoster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 007E0F3F86CF8F4ECE4E3945 /* VideoPoster.swift */; };
 		1EA6EDF68274954358561E02 /* VideoTimestampDeriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC9556AE330C0F37CAC5751F /* VideoTimestampDeriver.swift */; };
 		22CAA3C6B137E1DD00364127 /* video-viewer-golden-plain.html in Resources */ = {isa = PBXBuildFile; fileRef = 0A7E4D56A5BFA32DA7B9285F /* video-viewer-golden-plain.html */; };
 		2D5BD33951D0A7FF662C0A3F /* IndexHtmlGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80FCBDC9C1ECDDA55886B5A /* IndexHtmlGenerator.swift */; };
@@ -68,6 +69,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		007E0F3F86CF8F4ECE4E3945 /* VideoPoster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPoster.swift; sourceTree = "<group>"; };
 		06A48F26B10DD642AD5B6464 /* VideoEncoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEncoding.swift; sourceTree = "<group>"; };
 		082147F09FC716A0BEAD8B15 /* FileOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileOperations.swift; sourceTree = "<group>"; };
 		0A7E4D56A5BFA32DA7B9285F /* video-viewer-golden-plain.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "video-viewer-golden-plain.html"; sourceTree = "<group>"; };
@@ -151,6 +153,7 @@
 				282B4D114C60E28D56418FAE /* VercelDeployer.swift */,
 				248CA57BE0AE9DF3FE95681B /* VideoDeployer.swift */,
 				06A48F26B10DD642AD5B6464 /* VideoEncoding.swift */,
+				007E0F3F86CF8F4ECE4E3945 /* VideoPoster.swift */,
 				AC9556AE330C0F37CAC5751F /* VideoTimestampDeriver.swift */,
 				42ABCE72BEC351859554D951 /* VideoViewerGenerator.swift */,
 			);
@@ -440,6 +443,7 @@
 				14D97A0EC991F473EF8342A1 /* VideoDeployView.swift in Sources */,
 				0279F1846492EE33EF6B5DF6 /* VideoDeployer.swift in Sources */,
 				0F265C03C5A0D733EB35550F /* VideoEncoding.swift in Sources */,
+				15701A796DD5D2245EB5BC02 /* VideoPoster.swift in Sources */,
 				1EA6EDF68274954358561E02 /* VideoTimestampDeriver.swift in Sources */,
 				4A2E1C7FE7EE01DC8EB9F111 /* VideoViewerGenerator.swift in Sources */,
 			);

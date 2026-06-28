@@ -46,7 +46,7 @@
 </style></head>
 <body>
   <header><h1>Keynote Slide Viewer</h1></header>
-  <div id="deckContainer"><div id="deck"><video id="vid" muted playsinline preload="auto" src="./{{VIDEO_FILENAME}}"></video></div></div>
+  <div id="deckContainer"><div id="deck"><video id="vid" muted playsinline preload="auto"{{POSTER_ATTR}} src="./{{VIDEO_FILENAME}}"></video></div></div>
   <div id="viewer">
     <div class="controls-row"><button id="prevBtn" disabled>&#9664; Previous</button><span id="slideCounter">Slide 0 / 0</span><button id="nextBtn" disabled>Next &#9654;</button><span id="spinner" aria-hidden="true"></span></div>
     <div id="dotStrip"></div>

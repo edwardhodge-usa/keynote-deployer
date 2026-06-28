@@ -22,11 +22,16 @@ enum VideoViewerGenerator {
     ///   - timestamps: per-slide keyframe seconds; emitted as compact JSON (`{{TS}}`).
     ///   - videoWidth: pixel width (default 1920, mirrors Electron).
     ///   - videoHeight: pixel height (default 1080, mirrors Electron).
+    ///   - posterFilename: optional bare poster filename (e.g. `poster.jpg`). When
+    ///     present, emits ` poster="./<file>"` on the <video> so iOS paints slide 1
+    ///     on first load. When nil, the attribute collapses to "" (byte-identical to
+    ///     a no-poster build).
     static func generate(videoFilename: String,
                          secureEmbed: Bool,
                          timestamps: [Double],
                          videoWidth: Int = 1920,
-                         videoHeight: Int = 1080) -> String {
+                         videoHeight: Int = 1080,
+                         posterFilename: String? = nil) -> String {
         // The template is a required bundled resource. A missing template is a
         // build/packaging bug, never a runtime-recoverable condition.
         guard let url = Bundle.main.url(forResource: "video-viewer-template", withExtension: "html"),
@@ -45,10 +50,15 @@ enum VideoViewerGenerator {
             ? "document.addEventListener('contextmenu', function(e){ e.preventDefault(); });"
             : ""
 
+        // {{POSTER_ATTR}} — leading space + attribute when a poster is provided,
+        // else "" (collapses to the exact pre-poster bytes).
+        let posterAttr = posterFilename.map { " poster=\"./\($0)\"" } ?? ""
+
         // Single-pass fill: each token replaced exactly once across the original
         // template. Injected values never contain `{{…}}`, and the token strings
         // do not overlap, so replacement order is irrelevant for correctness.
         return template
+            .replacingOccurrences(of: "{{POSTER_ATTR}}", with: posterAttr)
             .replacingOccurrences(of: "{{VIDEO_FILENAME}}", with: videoFilename)
             .replacingOccurrences(of: "{{TS}}", with: ts)
             .replacingOccurrences(of: "{{VW}}", with: String(videoWidth))

@@ -59,12 +59,29 @@ enum VideoDeployer {
         // ── Step 3 — Generate ───────────────────────────────────────────────
         var step3 = ProcessingStep(id: 3, label: "Generate viewer", detail: "Building index.html…", status: .active)
         onProgress(step3)
+        // Best-effort poster = slide 1's rest frame, so the viewer's first paint
+        // shows slide 1 instead of black (iOS has no gesture to micro-play at load).
+        // restTime mirrors the viewer's REST_BIAS (0.08). A failure here must NOT
+        // fail the deploy — the viewer works without a poster, just black-on-load.
+        var posterFilename: String? = nil
+        if let firstTimestamp = analysis.timestamps.first {
+            let posterURL = URL(fileURLWithPath: tempDir).appendingPathComponent("poster.jpg")
+            do {
+                try await VideoPoster.extract(from: outputURL,
+                                              atSeconds: max(0, firstTimestamp - 0.08),
+                                              to: posterURL)
+                posterFilename = "poster.jpg"
+            } catch {
+                posterFilename = nil
+            }
+        }
         let html = VideoViewerGenerator.generate(
             videoFilename: "deck.mp4",
             secureEmbed: request.secureEmbed,
             timestamps: analysis.timestamps,
             videoWidth: analysis.width,
-            videoHeight: analysis.height)
+            videoHeight: analysis.height,
+            posterFilename: posterFilename)
         let indexURL = URL(fileURLWithPath: tempDir).appendingPathComponent("index.html")
         try html.write(to: indexURL, atomically: true, encoding: .utf8)
         step3.status = .completed
