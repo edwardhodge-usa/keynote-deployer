@@ -72,7 +72,7 @@
     // (Exact per-slide rest placement is imperfect from auto-derivation — that's what
     // the marker editor is for. The transition smoothness is handled by a bounded GOP
     // in the encoder, not by this bias.)
-    var REST_BIAS = 0.08;
+    var REST_BIAS = 0;
     function restTime(i){ var t = TS[i] - REST_BIAS; return t > 0 ? t : 0; }
     var vid = document.getElementById('vid'), deckContainer = document.getElementById('deckContainer'), loading = document.getElementById('loading');
     // playing = a transition is animating; navBusy = ANY nav in progress incl. the

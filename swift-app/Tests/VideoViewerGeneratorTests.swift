@@ -165,4 +165,13 @@ struct VideoViewerGeneratorTests {
         #expect(out.contains("aspect-ratio:1920/1080"))
         #expect(out.contains("VW=1920, VH=1080"))
     }
+
+    @Test("viewer rests exactly on the marker (REST_BIAS retired to 0)")
+    func restBiasIsZero() {
+        let html = VideoViewerGenerator.generate(
+            videoFilename: "deck.mp4", secureEmbed: false,
+            timestamps: [0, 1.5, 3.0], videoWidth: 1920, videoHeight: 1080)
+        #expect(html.contains("var REST_BIAS = 0;"))
+        #expect(!html.contains("var REST_BIAS = 0.08;"))
+    }
 }
