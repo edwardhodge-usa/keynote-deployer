@@ -43,6 +43,7 @@ struct MarkerEditorView: View {
                 let t = MarkerEditorLogic.clamp(proposed, index: selected, markers: markers, duration: duration)
                 markers[selected] = t
                 seek(to: t)
+                Task { await regenerateThumb(selected) }
             })
     }
 
@@ -134,7 +135,7 @@ struct MarkerEditorView: View {
         let (m, idx) = MarkerEditorLogic.insert(t, into: markers)
         markers = m
         selected = idx
-        Task { await regenerateThumb(idx) }
+        Task { await regenerateThumbsFrom(idx) }
     }
 
     private func removeSelected() {
