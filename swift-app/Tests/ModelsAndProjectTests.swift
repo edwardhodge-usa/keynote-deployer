@@ -32,7 +32,8 @@ struct ModelsAndProjectTests {
             frames: [0, 45, 90],
             timestamps: [0.0, 1.5, 3.0],
             slideCount: 3,
-            width: 1920, height: 1080, fps: 30
+            width: 1920, height: 1080, fps: 30,
+            frameCount: 0
         )
         #expect(a.frames.count == a.slideCount)
         #expect(a.slideCount == a.timestamps.count)

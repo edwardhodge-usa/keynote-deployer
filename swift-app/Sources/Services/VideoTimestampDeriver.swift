@@ -18,7 +18,7 @@ enum VideoTimestampDeriver {
                        videoURL: URL,
                        stillURLs: [URL],
                        fps: Double,
-                       onProgress: @Sendable (Double) -> Void = { _ in }) async throws -> VideoAnalysis {
+                       onProgress: @Sendable (Double) -> Void = { _ in }) async throws -> (analysis: VideoAnalysis, marks: [SlideMark]) {
         // fps drives timestamp math (round((frame/fps)*1000)/1000); a non-positive
         // fps would yield inf/nan timestamps → corrupt -force_key_frames / {{TS}}.
         guard fps > 0 else {
@@ -69,13 +69,18 @@ enum VideoTimestampDeriver {
 
         // 7. slideCount is the stills count — the slide-count truth (== frames.count
         // by construction).
-        return VideoAnalysis(
+        let analysis = VideoAnalysis(
             frames: frames,
             timestamps: timestamps,
             slideCount: stillURLs.count,
             width: width,
             height: height,
-            fps: fps
+            fps: fps,
+            frameCount: frameGrids.count
         )
+        // Seed hold spans from frame motion around the DP anchors (frames). Best-effort
+        // seed for the timeline editor; the user hand-tunes.
+        let marks = HoldDetector.detect(frameGrids: frameGrids, anchors: frames, frameCount: frameGrids.count)
+        return (analysis, marks)
     }
 }

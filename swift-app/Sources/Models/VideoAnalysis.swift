@@ -14,4 +14,7 @@ struct VideoAnalysis: Sendable {
     let width: Int
     let height: Int
     let fps: Double
+    /// Total decoded frame count (== frameGrids.count). The timeline's length and
+    /// the hold-span clamp upper bound.
+    let frameCount: Int
 }

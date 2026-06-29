@@ -56,14 +56,18 @@ struct VideoTimestampDeriverTests {
         let result = try await VideoTimestampDeriver.derive(
             encoder: enc, videoURL: Self.video, stillURLs: stills, fps: 30)
 
-        #expect(result.slideCount == 3)
-        #expect(result.frames == [0, 3, 7])
-        #expect(zip(result.frames, result.frames.dropFirst()).allSatisfy { $0 < $1 })  // strictly monotonic
-        #expect(result.timestamps == result.frames.map { round((Double($0) / 30.0) * 1000) / 1000 })
-        #expect(result.timestamps == [0.0, 0.1, 0.233])
-        #expect(result.width == 1920)
-        #expect(result.height == 1080)
-        #expect(result.fps == 30)
+        #expect(result.analysis.slideCount == 3)
+        #expect(result.analysis.frames == [0, 3, 7])
+        #expect(zip(result.analysis.frames, result.analysis.frames.dropFirst()).allSatisfy { $0 < $1 })  // strictly monotonic
+        #expect(result.analysis.timestamps == result.analysis.frames.map { round((Double($0) / 30.0) * 1000) / 1000 })
+        #expect(result.analysis.timestamps == [0.0, 0.1, 0.233])
+        #expect(result.analysis.width == 1920)
+        #expect(result.analysis.height == 1080)
+        #expect(result.analysis.fps == 30)
+
+        // derive now also returns seed hold-span marks (one per slide), valid + count-matched.
+        #expect(result.marks.count == result.analysis.slideCount)
+        #expect(SlideMarkLogic.isValid(result.marks, frameCount: result.analysis.frameCount))
     }
 
     @Test("A5: progress handler fires during sampling and finishes ~1.0")
@@ -104,8 +108,8 @@ struct VideoTimestampDeriverTests {
         let result = try await VideoTimestampDeriver.derive(
             encoder: enc, videoURL: Self.video, stillURLs: [s010, s001, s002], fps: 30)
 
-        #expect(result.frames == [0, 4, 9])
-        #expect(zip(result.frames, result.frames.dropFirst()).allSatisfy { $0 < $1 })
+        #expect(result.analysis.frames == [0, 4, 9])
+        #expect(zip(result.analysis.frames, result.analysis.frames.dropFirst()).allSatisfy { $0 < $1 })
     }
 
     @Test("empty stills → empty analysis")
@@ -114,8 +118,8 @@ struct VideoTimestampDeriverTests {
                               stillGridByPath: [:], dims: (1920, 1080, 30))
         let result = try await VideoTimestampDeriver.derive(
             encoder: enc, videoURL: Self.video, stillURLs: [], fps: 30)
-        #expect(result.slideCount == 0)
-        #expect(result.frames == [])
-        #expect(result.timestamps == [])
+        #expect(result.analysis.slideCount == 0)
+        #expect(result.analysis.frames == [])
+        #expect(result.analysis.timestamps == [])
     }
 }
