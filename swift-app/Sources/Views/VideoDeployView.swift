@@ -235,14 +235,8 @@ struct VideoDeployView: View {
                 inlineError(errorMessage)
             }
 
-            HStack {
-                Text("Frame rate")
-                Spacer()
-                TextField("fps", value: $fps, format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 80)
-                    .multilineTextAlignment(.trailing)
-                Stepper("", value: $fps, in: 1...120, step: 1).labelsHidden()
+            LabeledContent("Frame rate") {
+                Text("\(fps) fps")
             }
 
             TextField("Project Name", text: $projectName)

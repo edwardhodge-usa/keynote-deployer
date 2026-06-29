@@ -30,7 +30,7 @@ struct TimelineEditorView: View {
     }
 
     private var canSplit: Bool {
-        marks.contains { selectedFrame > $0.holdStart && selectedFrame < $0.holdEnd }
+        marks.indices.contains(selected.slide) && marks[selected.slide].holdEnd > marks[selected.slide].holdStart
     }
 
     var body: some View {
@@ -53,7 +53,12 @@ struct TimelineEditorView: View {
                 Button { step(-1) } label: { Label("−1 frame", systemImage: "backward.frame") }
                 Button { step(1) } label: { Label("+1 frame", systemImage: "forward.frame") }
                 Spacer()
-                Button { marks = SlideMarkLogic.split(at: selectedFrame, marks: marks) } label: { Label("Split", systemImage: "scissors") }
+                Button {
+                    let m = marks[selected.slide]
+                    let mid = min(max((m.holdStart + m.holdEnd) / 2, m.holdStart), m.holdEnd - 1)
+                    marks = SlideMarkLogic.split(at: mid, marks: marks)
+                    seek(selectedFrame)
+                } label: { Label("Split", systemImage: "scissors") }
                     .disabled(!canSplit)
                 Button { marks = SlideMarkLogic.merge(slide: selected.slide, marks: marks); clampSelection(); seek(selectedFrame) } label: { Label("Merge", systemImage: "arrow.triangle.merge") }
                     .disabled(marks.count <= 1 || selected.slide >= marks.count - 1)

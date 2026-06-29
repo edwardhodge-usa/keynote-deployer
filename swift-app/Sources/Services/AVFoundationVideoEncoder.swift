@@ -274,7 +274,9 @@ struct AVFoundationVideoEncoder: VideoEncoder {
             // CMSampleBuffer stays confined to this task).
             while let sample = readerOutput.copyNextSampleBuffer() {
                 try Task.checkCancellation()
-                guard let imageBuffer = CMSampleBufferGetImageBuffer(sample) else { continue }
+                guard let imageBuffer = CMSampleBufferGetImageBuffer(sample) else {
+                    throw VideoEncoderError.readerFailed("nil image buffer at frame \(frameIndex)")
+                }
 
                 if cachedFormatDesc == nil {
                     CMVideoFormatDescriptionCreateForImageBuffer(
