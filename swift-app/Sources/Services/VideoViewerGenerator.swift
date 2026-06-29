@@ -19,7 +19,8 @@ enum VideoViewerGenerator {
     /// - Parameters:
     ///   - videoFilename: bare filename, e.g. `deck.mp4` (lands in `src="./<file>"`).
     ///   - secureEmbed: when true, injects the no-select CSS + contextmenu-block script.
-    ///   - timestamps: per-slide keyframe seconds; emitted as compact JSON (`{{TS}}`).
+    ///   - spans: per-slide `[holdStart, holdEnd]` pairs in seconds; emitted as
+    ///     compact JSON (`{{TS}}`), e.g. `[[0,0.1],[0.2,0.3]]`.
     ///   - videoWidth: pixel width (default 1920, mirrors Electron).
     ///   - videoHeight: pixel height (default 1080, mirrors Electron).
     ///   - posterFilename: optional bare poster filename (e.g. `poster.jpg`). When
@@ -28,7 +29,7 @@ enum VideoViewerGenerator {
     ///     a no-poster build).
     static func generate(videoFilename: String,
                          secureEmbed: Bool,
-                         timestamps: [Double],
+                         spans: [[Double]],
                          videoWidth: Int = 1920,
                          videoHeight: Int = 1080,
                          posterFilename: String? = nil) -> String {
@@ -41,7 +42,7 @@ enum VideoViewerGenerator {
 
         // {{TS}} — compact JSON matching JS `JSON.stringify([…])` (no spaces; no
         // trailing zeros; integer values have no decimal point). Empty -> "[]".
-        let ts = "[" + timestamps.map(JSNumber.format).joined(separator: ",") + "]"
+        let ts = "[" + spans.map { "[" + $0.map(JSNumber.format).joined(separator: ",") + "]" }.joined(separator: ",") + "]"
 
         let secureEmbedCss = secureEmbed
             ? "body { user-select: none; } #deck video { pointer-events: none; }"

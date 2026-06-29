@@ -10,16 +10,17 @@ import Foundation
 /// View — not this deployer — owns `HistoryEntry` persistence and clipboard copy.
 enum VideoDeployer {
 
-    /// Step 1 only: probe + DP-match the stills → seed `VideoAnalysis`. The seed
-    /// timestamps become the initial markers the user reviews before encode.
+    /// Step 1 only: probe + DP-match the stills → seed `VideoAnalysis` + seed
+    /// `[SlideMark]`. The seed marks become the initial markers the user reviews
+    /// before encode.
     static func analyze(_ request: VideoDeployRequest,
                         seams: VideoDeployerSeams,
-                        onProgress: @Sendable (ProcessingStep) -> Void) async throws -> VideoAnalysis {
+                        onProgress: @Sendable (ProcessingStep) -> Void) async throws -> (analysis: VideoAnalysis, marks: [SlideMark]) {
         let videoURL = URL(fileURLWithPath: request.videoPath)
         let stillURLs = request.stillPaths.map { URL(fileURLWithPath: $0) }
 
         onProgress(ProcessingStep(id: 1, label: "Analyze video", detail: "Probing video…", status: .active))
-        let analysis = try await VideoTimestampDeriver.derive(
+        let (analysis, marks) = try await VideoTimestampDeriver.derive(
             encoder: seams.encoder,
             videoURL: videoURL,
             stillURLs: stillURLs,
@@ -35,100 +36,83 @@ enum VideoDeployer {
             id: 1, label: "Analyze video",
             detail: "\(slideCount) slide\(slideCount == 1 ? "" : "s")",
             status: .completed))
-        return analysis
+        return (analysis, marks)
     }
 
-    /// Steps 2–4: encode (forced keyframes at the EDITED markers) → generate the
-    /// viewer (the same edited markers as {{TS}}) → deploy to Vercel. `width/height/
-    /// fps` come from the seed `analysis`; the slide count follows the edited markers.
+    /// Steps 2–4: encode (forced keyframes at the union of holdStart+holdEnd frames)
+    /// → generate the viewer (spans as {{TS}}) → deploy to Vercel. `width/height/fps`
+    /// come from the seed `analysis`; the slide count follows the edited marks.
     static func deploy(_ request: VideoDeployRequest,
                        analysis: VideoAnalysis,
-                       editedTimestamps: [Double],
+                       marks: [SlideMark],
                        settings: AppSettings,
                        seams: VideoDeployerSeams,
                        onProgress: @Sendable (ProcessingStep) -> Void) async throws -> VideoDeployResult {
-        // Fix 5: defense-in-depth — guard the forced-keyframe / {{TS}} / poster path
-        // against a future UI-gate regression. The editor button is already disabled
-        // for non-monotonic inputs; this makes the deploy boundary explicit.
-        guard !editedTimestamps.isEmpty else {
-            throw VideoDeployError.invalidMarkers(
-                "Marker list is empty — at least one slide is required.")
+        guard !marks.isEmpty else { throw VideoDeployError.invalidMarkers("no slide markers") }
+        guard SlideMarkLogic.isValid(marks, frameCount: analysis.frameCount) else {
+            throw VideoDeployError.invalidMarkers("markers overlap or are out of order")
         }
-        guard zip(editedTimestamps, editedTimestamps.dropFirst()).allSatisfy({ $0 < $1 }) else {
-            throw VideoDeployError.invalidMarkers(
-                "Marker list is not strictly increasing — re-open the marker editor.")
-        }
-
         let videoURL = URL(fileURLWithPath: request.videoPath)
-
         let tempDir = "/tmp/keynote-deployer-video-\(Int(Date().timeIntervalSince1970))-\(UUID().uuidString.prefix(8))"
         try FileManager.default.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
-        // ── Step 2 — Encode (forced keyframes at the edited markers) ────────────
+        let keyframes = forcedKeyframeSeconds(marks: marks, fps: analysis.fps)
+        let spans = viewerSpans(marks: marks, fps: analysis.fps)
+
         var step2 = ProcessingStep(id: 2, label: "Encode video", detail: "Re-encoding with per-slide keyframes…", status: .active)
         onProgress(step2)
         let outputURL = URL(fileURLWithPath: tempDir).appendingPathComponent("deck.mp4")
-        try await seams.encoder.encodeWithKeyframes(input: videoURL, output: outputURL, timestamps: editedTimestamps, fps: analysis.fps)
-        step2.status = .completed
-        onProgress(step2)
+        try await seams.encoder.encodeWithKeyframes(input: videoURL, output: outputURL, timestamps: keyframes, fps: analysis.fps)
+        step2.status = .completed; onProgress(step2)
 
-        // ── Step 3 — Generate ───────────────────────────────────────────────────
         var step3 = ProcessingStep(id: 3, label: "Generate viewer", detail: "Building index.html…", status: .active)
         onProgress(step3)
-        // Poster = slide 1's marker frame EXACTLY (REST_BIAS retired to 0 — the marker
-        // IS the rest frame). Best-effort: a failure degrades to no-poster, never fails.
         var posterFilename: String? = nil
-        if let firstTimestamp = editedTimestamps.first {
+        if let firstHold = spans.first?.first {
             let posterURL = URL(fileURLWithPath: tempDir).appendingPathComponent("poster.jpg")
-            do {
-                try await VideoPoster.extract(from: outputURL, atSeconds: max(0, firstTimestamp), to: posterURL)
-                posterFilename = "poster.jpg"
-            } catch {
-                posterFilename = nil
-            }
+            do { try await VideoPoster.extract(from: outputURL, atSeconds: max(0, firstHold), to: posterURL); posterFilename = "poster.jpg" }
+            catch { posterFilename = nil }
         }
         let html = VideoViewerGenerator.generate(
-            videoFilename: "deck.mp4",
-            secureEmbed: request.secureEmbed,
-            timestamps: editedTimestamps,
-            videoWidth: analysis.width,
-            videoHeight: analysis.height,
-            posterFilename: posterFilename)
-        let indexURL = URL(fileURLWithPath: tempDir).appendingPathComponent("index.html")
-        try html.write(to: indexURL, atomically: true, encoding: .utf8)
-        step3.status = .completed
-        onProgress(step3)
+            videoFilename: "deck.mp4", secureEmbed: request.secureEmbed,
+            spans: spans, videoWidth: analysis.width, videoHeight: analysis.height, posterFilename: posterFilename)
+        try html.write(to: URL(fileURLWithPath: tempDir).appendingPathComponent("index.html"), atomically: true, encoding: .utf8)
+        step3.status = .completed; onProgress(step3)
 
-        // ── Step 4 — Deploy ───────────────────────────────────────────────────────
         var step4 = ProcessingStep(id: 4, label: "Deploy to Vercel", detail: "Deploying…", status: .active)
         guard !settings.vercelToken.isEmpty else {
-            step4.status = .error
-            step4.error = VideoDeployError.missingVercelToken.errorDescription
-            onProgress(step4)
+            step4.status = .error; step4.error = VideoDeployError.missingVercelToken.errorDescription; onProgress(step4)
             throw VideoDeployError.missingVercelToken
         }
         onProgress(step4)
         let url: String
-        do {
-            url = try await seams.ensureProjectAndDeploy(tempDir, request.projectName, request.secureEmbed, onProgress)
-        } catch {
-            onProgress(ProcessingStep(id: 4, label: "Deploy to Vercel", detail: "Deploy failed",
-                                      status: .error, error: error.localizedDescription))
+        do { url = try await seams.ensureProjectAndDeploy(tempDir, request.projectName, request.secureEmbed, onProgress) }
+        catch {
+            onProgress(ProcessingStep(id: 4, label: "Deploy to Vercel", detail: "Deploy failed", status: .error, error: error.localizedDescription))
             throw error
         }
-        step4.detail = url
-        step4.status = .completed
-        onProgress(step4)
+        step4.detail = url; step4.status = .completed; onProgress(step4)
 
-        return VideoDeployResult(
-            url: url,
-            projectName: request.projectName,
-            title: request.title,
-            slideCount: editedTimestamps.count,
-            width: analysis.width,
-            height: analysis.height,
-            folderPath: request.videoPath)
+        return VideoDeployResult(url: url, projectName: request.projectName, title: request.title,
+                                 slideCount: marks.count, width: analysis.width, height: analysis.height,
+                                 folderPath: request.videoPath)
+    }
+
+    // MARK: - Helpers
+
+    /// Sorted unique set of holdStart+holdEnd frame indices converted to seconds
+    /// (3dp). These are the forced keyframes passed to the encoder.
+    static func forcedKeyframeSeconds(marks: [SlideMark], fps: Double) -> [Double] {
+        let frames = Set(marks.flatMap { [$0.holdStart, $0.holdEnd] })
+        return frames.sorted().map { round((Double($0) / fps) * 1000) / 1000 }
+    }
+
+    /// Maps each `SlideMark` to `[holdStart, holdEnd]` in seconds (3dp). The viewer
+    /// receives these as `{{TS}}` and uses them to seek and pause at each hold frame.
+    static func viewerSpans(marks: [SlideMark], fps: Double) -> [[Double]] {
+        marks.map { [round((Double($0.holdStart) / fps) * 1000) / 1000,
+                     round((Double($0.holdEnd) / fps) * 1000) / 1000] }
     }
 }
 
@@ -208,8 +192,8 @@ struct VideoDeployResult: Sendable {
 enum VideoDeployError: Error, LocalizedError, Sendable, Equatable {
     case missingVercelToken
     case deployFailed(String)
-    /// The edited marker list is empty or not strictly increasing. The editor UI
-    /// gate prevents this in normal use; this case guards against regressions.
+    /// The edited marker list is empty or invalid. The editor UI gate prevents this
+    /// in normal use; this case guards against regressions.
     case invalidMarkers(String)
 
     var errorDescription: String? {
