@@ -66,14 +66,10 @@
   <div id="loading"><div id="loadSpinner"></div><div id="loadingText">Loading presentation…</div></div>
   <script>if (window.self !== window.top) document.body.classList.add('in-iframe');</script>
   <script>
-    var TS = [0,1.234,5.6,12];
+    var TS = [[0,0.5],[1.234,4],[5.6,11],[12,14]];                 // [[holdStartSec, holdEndSec], ...]
     var N = TS.length, VW=1920, VH=1080, EPS=0.03;
-    // Bias the rest frame ~2 frames off the matched keyframe into the stable hold.
-    // (Exact per-slide rest placement is imperfect from auto-derivation — that's what
-    // the marker editor is for. The transition smoothness is handled by a bounded GOP
-    // in the encoder, not by this bias.)
-    var REST_BIAS = 0;
-    function restTime(i){ var t = TS[i] - REST_BIAS; return t > 0 ? t : 0; }
+    function holdStart(i){ return TS[i][0]; }   // rest point + forced keyframe
+    function holdEnd(i){ return TS[i][1]; }      // start of outgoing animation
     var vid = document.getElementById('vid'), deckContainer = document.getElementById('deckContainer'), loading = document.getElementById('loading');
     // playing = a transition is animating; navBusy = ANY nav in progress incl. the
     // paintFrame micro-play tail. navBusy is the re-entrancy lock: no nav may start
@@ -85,7 +81,7 @@
     // Rest = the PAUSED video frame, biased a touch before this slide's keyframe.
     function settleOn(i){
       navBusy = true; current = i; playing = false;
-      try { vid.pause(); vid.currentTime = restTime(i); } catch(e){}
+      try { vid.pause(); vid.currentTime = holdStart(i); } catch(e){}
       updateControls();
       paintFrame(function(){ navBusy = false; setBusy(false); updateControls(); reportHeight(); });
     }
@@ -120,7 +116,13 @@
     function next(){
       if (navBusy || playing || current>=N-1) return;
       navBusy = true; playing = true; setBusy(true); updateControls();
-      var target = restTime(current+1);
+      var target = holdStart(current+1);
+      // Zero-duration transition: no outgoing animation — skip play, settle directly.
+      if (holdStart(current+1) - holdEnd(current) <= 0){
+        playing = false;
+        settleOn(current + 1);
+        return;
+      }
       function go(){
         // iOS WebKit returns vid.currentTime=0 during inline playback inside a
         // cross-origin iframe (the Framer embed), so the old "play then poll
@@ -133,7 +135,7 @@
         // regardless of stop precision. (rAF + timeupdate were both verified dead
         // ends on iOS in this embed: rAF fires but reads currentTime=0; timeupdate
         // barely fires; rVFC.mediaTime is unreliable too — wall-clock is the anchor.)
-        var done = false, startPos = restTime(current), rate = vid.playbackRate || 1, capTimer = null, safety = null;
+        var done = false, startPos = holdEnd(current), rate = vid.playbackRate || 1, capTimer = null, safety = null;
         // Budget = how long the transition should take, + a small margin. Count only
         // ACTUAL playing time toward it: on the FIRST visit to a slide the region isn't
         // buffered yet, so playback stalls ('waiting') mid-transition. A clock anchored
@@ -158,7 +160,7 @@
           if (safety){ clearTimeout(safety); safety = null; }
           cleanup();
           vid.pause(); current++; playing = false;
-          try { vid.currentTime = restTime(current); } catch(e){}
+          try { vid.currentTime = holdStart(current); } catch(e){}
           updateControls(); reportHeight();   // new slide number; controls stay disabled (navBusy still true)
           // Force iOS to repaint the settled rest frame, and hold navBusy until that
           // 40ms paint settles so a fast re-tap can't race it into the next transition.
@@ -185,11 +187,11 @@
       }
       // Don't start the transition until any in-progress seek settles AND we're
       // parked at this slide's frame — otherwise play() races the seek and freezes.
-      if (vid.seeking || Math.abs(vid.currentTime - restTime(current)) > 0.1){
+      if (vid.seeking || Math.abs(vid.currentTime - holdEnd(current)) > 0.1){
         var proceeded = false;
         var proceed = function(){ if (proceeded) return; proceeded = true; vid.removeEventListener('seeked', proceed); go(); };
         vid.addEventListener('seeked', proceed);
-        try { vid.currentTime = restTime(current); } catch(e){ proceed(); }
+        try { vid.currentTime = holdEnd(current); } catch(e){ proceed(); }
         // iOS may not fire 'seeked' for a seek on a paused video → don't hang waiting.
         setTimeout(proceed, 250);
       } else { go(); }

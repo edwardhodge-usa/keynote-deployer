@@ -42,7 +42,7 @@ struct VideoViewerGeneratorTests {
         let output = VideoViewerGenerator.generate(
             videoFilename: "deck.mp4",
             secureEmbed: true,
-            timestamps: [0, 1.234, 5.6, 12],
+            spans: [[0, 0.5], [1.234, 4.0], [5.6, 11.0], [12.0, 14.0]],
             videoWidth: 1920,
             videoHeight: 1080
         )
@@ -57,7 +57,7 @@ struct VideoViewerGeneratorTests {
         let output = VideoViewerGenerator.generate(
             videoFilename: "slides.mp4",
             secureEmbed: false,
-            timestamps: [0, 2.5, 7],
+            spans: [[0, 1.0], [2.5, 6.0], [7.0, 9.0]],
             videoWidth: 1024,
             videoHeight: 768
         )
@@ -66,18 +66,19 @@ struct VideoViewerGeneratorTests {
 
     /// {{TS}} is emitted as compact JSON with no spaces, matching JS
     /// JSON.stringify. Integers render with no decimal point; empty -> [].
-    @Test func timestampsAreCompactJson() {
+    @Test func spansAreCompactJson() {
         let out = VideoViewerGenerator.generate(
             videoFilename: "deck.mp4", secureEmbed: false,
-            timestamps: [0, 1.234, 5.6, 12], videoWidth: 1920, videoHeight: 1080
+            spans: [[0, 0.5], [1.234, 4.0], [5.6, 11.0], [12.0, 14.0]],
+            videoWidth: 1920, videoHeight: 1080
         )
-        #expect(out.contains("var TS = [0,1.234,5.6,12];"))
+        #expect(out.contains("var TS = [[0,0.5],[1.234,4],[5.6,11],[12,14]];"))
         // no spaces after commas
-        #expect(!out.contains("[0, 1.234"))
+        #expect(!out.contains("[[0, 0.5"))
 
         let empty = VideoViewerGenerator.generate(
             videoFilename: "deck.mp4", secureEmbed: false,
-            timestamps: [], videoWidth: 1920, videoHeight: 1080
+            spans: [], videoWidth: 1920, videoHeight: 1080
         )
         #expect(empty.contains("var TS = [];"))
     }
@@ -87,13 +88,23 @@ struct VideoViewerGeneratorTests {
     /// (0.001), binary-non-terminating (0.1 -> "0.1"), and integer-valued
     /// (100, 12) all match JS JSON.stringify. Guards against the `%.3f` helper
     /// drifting and against the (former) Int() crash on integer values.
-    @Test func timestampParityForContractBoundedValues() {
+    @Test func spansPairParityForContractBoundedValues() {
         let out = VideoViewerGenerator.generate(
             videoFilename: "deck.mp4", secureEmbed: false,
-            timestamps: [0.001, 0.1, 100, 12], videoWidth: 1920, videoHeight: 1080
+            spans: [[0.001, 0.05], [0.1, 1.0], [100.0, 110.0], [12.0, 20.0]],
+            videoWidth: 1920, videoHeight: 1080
         )
-        // JS: JSON.stringify([0.001, 0.1, 100, 12]) === "[0.001,0.1,100,12]"
-        #expect(out.contains("var TS = [0.001,0.1,100,12];"))
+        // JS: JSON.stringify([[0.001,0.05],[0.1,1],[100,110],[12,20]])
+        #expect(out.contains("var TS = [[0.001,0.05],[0.1,1],[100,110],[12,20]];"))
+    }
+
+    /// spans fill {{TS}} as a JSON array of [start,end] pairs
+    @Test("spans fill {{TS}} as a JSON array of [start,end] pairs")
+    func spansPairs() {
+        let html = VideoViewerGenerator.generate(
+            videoFilename: "deck.mp4", secureEmbed: false,
+            spans: [[0, 1.5], [2.0, 3.0]], videoWidth: 1920, videoHeight: 1080)
+        #expect(html.contains("var TS = [[0,1.5],[2,3]];"))
     }
 
     /// secureEmbed=true injects the EXACT css + contextmenu script strings;
@@ -101,14 +112,14 @@ struct VideoViewerGeneratorTests {
     @Test func secureEmbedStringsExact() {
         let on = VideoViewerGenerator.generate(
             videoFilename: "deck.mp4", secureEmbed: true,
-            timestamps: [0], videoWidth: 1920, videoHeight: 1080
+            spans: [[0, 1.0]], videoWidth: 1920, videoHeight: 1080
         )
         #expect(on.contains("body { user-select: none; } #deck video { pointer-events: none; }"))
         #expect(on.contains("document.addEventListener('contextmenu', function(e){ e.preventDefault(); });"))
 
         let off = VideoViewerGenerator.generate(
             videoFilename: "deck.mp4", secureEmbed: false,
-            timestamps: [0], videoWidth: 1920, videoHeight: 1080
+            spans: [[0, 1.0]], videoWidth: 1920, videoHeight: 1080
         )
         #expect(!off.contains("user-select: none"))
         #expect(!off.contains("contextmenu"))
@@ -121,7 +132,7 @@ struct VideoViewerGeneratorTests {
     @Test func filenameAndDimensionsLandInTokens() {
         let out = VideoViewerGenerator.generate(
             videoFilename: "myDeck.mp4", secureEmbed: false,
-            timestamps: [0], videoWidth: 1600, videoHeight: 900
+            spans: [[0, 1.0]], videoWidth: 1600, videoHeight: 900
         )
         #expect(out.contains("\"./myDeck.mp4\""))   // blob loader URL
         #expect(!out.contains("src=\"./myDeck.mp4\""))   // no static src attribute
@@ -138,7 +149,7 @@ struct VideoViewerGeneratorTests {
     /// collapses to "".
     @Test func noPosterByDefault() {
         let out = VideoViewerGenerator.generate(
-            videoFilename: "deck.mp4", secureEmbed: false, timestamps: [0]
+            videoFilename: "deck.mp4", secureEmbed: false, spans: [[0, 1.0]]
         )
         #expect(!out.contains("poster="))
         #expect(out.contains("muted playsinline preload=\"auto\"></video>"))
@@ -150,7 +161,7 @@ struct VideoViewerGeneratorTests {
     /// static attribute); the deck src is set later in JS, so no static src.
     @Test func posterAttributeWhenProvided() {
         let out = VideoViewerGenerator.generate(
-            videoFilename: "deck.mp4", secureEmbed: false, timestamps: [0],
+            videoFilename: "deck.mp4", secureEmbed: false, spans: [[0, 1.0]],
             videoWidth: 1920, videoHeight: 1080, posterFilename: "poster.jpg"
         )
         #expect(out.contains("preload=\"auto\" poster=\"./poster.jpg\"></video>"))
@@ -160,18 +171,22 @@ struct VideoViewerGeneratorTests {
     /// Default parameters mirror Electron (1920x1080) when omitted.
     @Test func defaultDimensionsAre1920x1080() {
         let out = VideoViewerGenerator.generate(
-            videoFilename: "deck.mp4", secureEmbed: false, timestamps: [0]
+            videoFilename: "deck.mp4", secureEmbed: false, spans: [[0, 1.0]]
         )
         #expect(out.contains("aspect-ratio:1920/1080"))
         #expect(out.contains("VW=1920, VH=1080"))
     }
 
-    @Test("viewer rests exactly on the marker (REST_BIAS retired to 0)")
-    func restBiasIsZero() {
+    /// REST_BIAS is retired — the viewer now derives rest/start positions from the
+    /// holdStart/holdEnd pair in each span. Verifies both the removal and the
+    /// presence of the replacement helper functions.
+    @Test("REST_BIAS retired — viewer uses holdStart/holdEnd from spans")
+    func restBiasRetired() {
         let html = VideoViewerGenerator.generate(
             videoFilename: "deck.mp4", secureEmbed: false,
-            timestamps: [0, 1.5, 3.0], videoWidth: 1920, videoHeight: 1080)
-        #expect(html.contains("var REST_BIAS = 0;"))
-        #expect(!html.contains("var REST_BIAS = 0.08;"))
+            spans: [[0, 0.5], [1.5, 3.0]], videoWidth: 1920, videoHeight: 1080)
+        #expect(!html.contains("REST_BIAS"))
+        #expect(html.contains("function holdStart(i)"))
+        #expect(html.contains("function holdEnd(i)"))
     }
 }
