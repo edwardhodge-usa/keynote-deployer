@@ -49,4 +49,17 @@ struct HoldDetectorTests {
         #expect(marks.count == 1)
         #expect(SlideMarkLogic.isValid(marks, frameCount: 10))
     }
+
+    @Test("over-packed anchors stay valid (drops unfittable spans)")
+    func overPackedAnchorsStayValid() {
+        // More anchors than available frames: 3 anchors [0, 1, 2], but only 2 frames.
+        // The deduped anchors will compete for space; output must always be valid.
+        let anchors = [0, 1, 2]
+        let frameCount = 2
+        let grids = [grid(10), grid(10)] // 2 flat grids
+        let marks = HoldDetector.detect(frameGrids: grids, anchors: anchors, frameCount: frameCount, motionThreshold: 6.0)
+        // The result may have fewer than 3 slides (impossible to fit all three without overlap),
+        // but it MUST be valid.
+        #expect(SlideMarkLogic.isValid(marks, frameCount: frameCount))
+    }
 }

@@ -61,6 +61,16 @@ enum HoldDetector {
             // d. If clamping squeezed start past end, pin end to start.
             if marks[i].holdStart > marks[i].holdEnd { marks[i].holdEnd = marks[i].holdStart }
         }
-        return marks
+
+        // 4. Drop any mark that can't fit without overlapping its predecessor.
+        //    For the impossible over-packed case (deduped.count > bound), this ensures
+        //    the result is always a valid, non-overlapping array.
+        var result: [SlideMark] = []
+        for mark in marks {
+            if result.isEmpty || mark.holdStart > result.last!.holdEnd {
+                result.append(mark)
+            }
+        }
+        return result
     }
 }
