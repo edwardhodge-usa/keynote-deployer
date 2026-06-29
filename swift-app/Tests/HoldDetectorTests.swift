@@ -30,11 +30,23 @@ struct HoldDetectorTests {
     @Test("colliding runs are cut at the anchor midpoint")
     func collisionCut() {
         // entire clip is flat (no motion) with two anchors → both runs want the whole
-        // clip; they must be split at the midpoint of anchors 2 and 8 → 5.
+        // clip; they must be split at the midpoint of anchors 2 and 8 → mid=(2+8)/2=5.
         let grids = (0..<11).map { _ in grid(10) }
         let marks = HoldDetector.detect(frameGrids: grids, anchors: [2, 8], frameCount: 11, motionThreshold: 6.0)
         #expect(marks.count == 2)
         #expect(marks[0].holdEnd < marks[1].holdStart)
+        // Pin the exact split: slide 0 ends at 5, slide 1 starts at 6.
+        #expect(marks[0].holdEnd == 5 && marks[1].holdStart == 6)
         #expect(SlideMarkLogic.isValid(marks, frameCount: 11))
+    }
+
+    @Test("duplicate anchors collapse to a single slide and produce valid marks")
+    func duplicateAnchors() {
+        // [5, 5] deduplicates to [5]; the flat 10-frame clip expands to one span.
+        let grids = (0..<10).map { _ in grid(10) }
+        let marks = HoldDetector.detect(frameGrids: grids, anchors: [5, 5], frameCount: 10, motionThreshold: 6.0)
+        // Dedup collapses [5,5] → [5] → exactly 1 SlideMark.
+        #expect(marks.count == 1)
+        #expect(SlideMarkLogic.isValid(marks, frameCount: 10))
     }
 }

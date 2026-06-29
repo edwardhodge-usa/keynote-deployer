@@ -22,29 +22,44 @@ enum HoldDetector {
         guard !anchors.isEmpty, frameCount > 0 else { return [] }
         let sorted = anchors.sorted()
 
+        // Deduplicate adjacent duplicates so [5,5] → [5] (one slide, not two).
+        var deduped: [Int] = []
+        for v in sorted { if deduped.last != v { deduped.append(v) } }
+
+        // Shared upper bound so frameCount != frameGrids.count can't desync the clamps.
+        let bound = min(frameCount, frameGrids.count)
+        guard bound > 0 else { return [] }
+
         // 1. Expand each anchor into its low-motion run.
-        var marks: [SlideMark] = sorted.map { anchor in
-            let a = max(0, min(anchor, frameGrids.count - 1))
+        var marks: [SlideMark] = deduped.map { anchor in
+            let a = max(0, min(anchor, bound - 1))
             var start = a, end = a
             while start > 0, diff(frameGrids[start - 1], frameGrids[start]) < motionThreshold { start -= 1 }
-            while end < frameGrids.count - 1, diff(frameGrids[end], frameGrids[end + 1]) < motionThreshold { end += 1 }
+            while end < bound - 1, diff(frameGrids[end], frameGrids[end + 1]) < motionThreshold { end += 1 }
             return SlideMark(holdStart: start, holdEnd: end)
         }
 
         // 2. Resolve collisions: if slide i's hold reaches into slide i+1's, cut both
         //    at the midpoint of their anchors.
         for i in 0..<(marks.count - 1) where marks[i].holdEnd >= marks[i + 1].holdStart {
-            let mid = (sorted[i] + sorted[i + 1]) / 2
+            let mid = (deduped[i] + deduped[i + 1]) / 2
             marks[i].holdEnd = min(marks[i].holdEnd, mid)
             marks[i + 1].holdStart = max(marks[i + 1].holdStart, mid + 1)
         }
 
         // 3. Final safety: enforce ordering + frame range so the seed is always valid.
+        //    Order: push past previous holdEnd FIRST, then clamp into [0, bound-1].
+        //    Clamping before the push allowed holdStart to escape the range when squeezed.
         for i in marks.indices {
-            marks[i].holdStart = max(0, min(marks[i].holdStart, frameCount - 1))
-            marks[i].holdEnd = max(marks[i].holdStart, min(marks[i].holdEnd, frameCount - 1))
-            if i > 0 { marks[i].holdStart = max(marks[i].holdStart, marks[i - 1].holdEnd + 1) }
-            if i > 0 { marks[i].holdEnd = max(marks[i].holdEnd, marks[i].holdStart) }
+            // a. Enforce ordering: start must come after the previous slide's end.
+            marks[i].holdStart = max(marks[i].holdStart, i > 0 ? marks[i - 1].holdEnd + 1 : 0)
+            // b. Keep end >= start before clamping.
+            marks[i].holdEnd = max(marks[i].holdEnd, marks[i].holdStart)
+            // c. Clamp both into [0, bound-1].
+            marks[i].holdStart = max(0, min(marks[i].holdStart, bound - 1))
+            marks[i].holdEnd   = max(0, min(marks[i].holdEnd,   bound - 1))
+            // d. If clamping squeezed start past end, pin end to start.
+            if marks[i].holdStart > marks[i].holdEnd { marks[i].holdEnd = marks[i].holdStart }
         }
         return marks
     }
