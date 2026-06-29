@@ -179,14 +179,32 @@ struct FFmpegVideoEncoder: VideoEncoder {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
+        // Bridge process exit to async via terminationHandler — set BEFORE run() so
+        // a fast child that exits immediately can't be missed. We deliberately do
+        // NOT use `waitUntilExit()`: it blocks in __psynch_cvwait and can hang
+        // forever on a structured-concurrency thread (no run loop) EVEN AFTER the
+        // child has already exited and been reaped (observed: 39-still sampling
+        // wedged at waitUntilExit with no surviving ffmpeg child). terminationHandler
+        // fires regardless of any run loop.
+        let exitBox = ProcessExitBox()
+        process.terminationHandler = { p in
+            p.terminationHandler = nil
+            exitBox.resume(p.terminationStatus)
+        }
+
         return try await withTaskCancellationHandler {
             do { try process.run() }
-            catch { throw VideoEncoderError.writerFailed("could not launch \(executable): \(error.localizedDescription)") }
+            catch {
+                // Handler will never fire on a launch failure — unblock the awaiter.
+                exitBox.resume(-1)
+                throw VideoEncoderError.writerFailed("could not launch \(executable): \(error.localizedDescription)")
+            }
 
-            // Drain BOTH pipes concurrently off-thread BEFORE waitUntilExit. stdout
+            // Drain BOTH pipes concurrently off-thread BEFORE awaiting exit. stdout
             // can be hundreds of MB (rawvideo); stderr must also be drained in
             // parallel — if it ever exceeds the ~64KB pipe buffer before stdout
-            // closes, the child blocks on stderr and stdout never reaches EOF.
+            // closes, the child blocks on stderr and stdout never reaches EOF (and
+            // so never terminates).
             async let stdoutData: Data = withUnsafeContinuation { cont in
                 DispatchQueue.global().async {
                     cont.resume(returning: stdoutPipe.fileHandleForReading.readDataToEndOfFile())
@@ -199,10 +217,12 @@ struct FFmpegVideoEncoder: VideoEncoder {
             }
             let out = await stdoutData
             _ = await stderrData
-            process.waitUntilExit()
+
+            // Await termination via the handler, not the hang-prone waitUntilExit.
+            let status = await exitBox.value()
             // A cancel reads as a cancel, not a confusing "encoding failed".
             if Task.isCancelled { throw VideoEncoderError.cancelled }
-            return (out, process.terminationStatus)
+            return (out, status)
         } onCancel: {
             process.terminate()
         }
@@ -224,5 +244,45 @@ struct FFmpegVideoEncoder: VideoEncoder {
     private static func firstInt(in text: String, pattern: String) -> Int? {
         guard let m = firstMatch(in: text, pattern: pattern, groups: 1) else { return nil }
         return Int(m[0])
+    }
+}
+
+/// One-shot async bridge from `Process.terminationHandler` to an awaitable exit
+/// status. Resumes its awaiter exactly once and works regardless of ordering:
+/// the handler may fire before OR after `value()` is awaited (a fast child can
+/// exit before the await), and a launch failure can resume it with a sentinel
+/// instead of the handler. Lock-guarded so the handler's queue and the awaiter
+/// can't race.
+private final class ProcessExitBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var status: Int32?
+    private var cont: CheckedContinuation<Int32, Never>?
+
+    /// Called by the terminationHandler (or the launch-failure path). First call wins.
+    func resume(_ value: Int32) {
+        lock.lock()
+        guard status == nil else { lock.unlock(); return }
+        status = value
+        if let c = cont {
+            cont = nil
+            lock.unlock()
+            c.resume(returning: value)
+        } else {
+            lock.unlock()
+        }
+    }
+
+    /// Awaits the exit status — returns immediately if termination already happened.
+    func value() async -> Int32 {
+        await withCheckedContinuation { (c: CheckedContinuation<Int32, Never>) in
+            lock.lock()
+            if let s = status {
+                lock.unlock()
+                c.resume(returning: s)
+            } else {
+                cont = c
+                lock.unlock()
+            }
+        }
     }
 }
