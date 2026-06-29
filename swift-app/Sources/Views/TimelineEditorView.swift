@@ -29,6 +29,10 @@ struct TimelineEditorView: View {
         return selected.edge == .start ? marks[selected.slide].holdStart : marks[selected.slide].holdEnd
     }
 
+    private var canSplit: Bool {
+        marks.contains { selectedFrame > $0.holdStart && selectedFrame < $0.holdEnd }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Review Markers").font(.title2.weight(.semibold))
@@ -50,7 +54,8 @@ struct TimelineEditorView: View {
                 Button { step(1) } label: { Label("+1 frame", systemImage: "forward.frame") }
                 Spacer()
                 Button { marks = SlideMarkLogic.split(at: selectedFrame, marks: marks) } label: { Label("Split", systemImage: "scissors") }
-                Button { marks = SlideMarkLogic.merge(slide: selected.slide, marks: marks); clampSelection() } label: { Label("Merge", systemImage: "arrow.triangle.merge") }
+                    .disabled(!canSplit)
+                Button { marks = SlideMarkLogic.merge(slide: selected.slide, marks: marks); clampSelection(); seek(selectedFrame) } label: { Label("Merge", systemImage: "arrow.triangle.merge") }
                     .disabled(marks.count <= 1 || selected.slide >= marks.count - 1)
             }
 
@@ -115,6 +120,7 @@ struct TimelineEditorView: View {
     }
 
     private func seek(_ frame: Int) {
+        guard fps > 0 else { return }
         player.seek(to: CMTime(seconds: Double(frame) / fps, preferredTimescale: 600),
                     toleranceBefore: .zero, toleranceAfter: .zero)
     }
