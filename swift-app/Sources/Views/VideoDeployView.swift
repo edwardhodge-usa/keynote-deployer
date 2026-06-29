@@ -113,8 +113,7 @@ struct VideoDeployView: View {
     @State private var copied: String?
     @State private var deployTask: Task<Void, Never>?
     @State private var analysis: VideoAnalysis?
-    @State private var markers: [Double] = []
-    @State private var videoDuration: Double = 0
+    @State private var marks: [SlideMark] = []
     @State private var currentRequest: VideoDeployRequest?
     /// The preset (from a Projects "Update") is one-shot: once applied to a video,
     /// a subsequent video in the same session must NOT inherit it (it would deploy
@@ -285,13 +284,13 @@ struct VideoDeployView: View {
 
     @ViewBuilder
     private var reviewMarkersPhase: some View {
-        if let player, let videoPath {
-            MarkerEditorView(
+        if let player, let analysis {
+            TimelineEditorView(
                 player: player,
-                videoURL: URL(fileURLWithPath: videoPath),
-                duration: videoDuration,
-                initialMarkers: markers,
-                onConfirm: { edited in startDeploy(editedTimestamps: edited) },
+                frameCount: analysis.frameCount,
+                fps: analysis.fps,
+                initialMarks: marks,
+                onConfirm: { edited in startDeploy(marks: edited) },
                 onBack: { phase = .confirm })
         } else {
             ProgressView()
@@ -390,11 +389,11 @@ struct VideoDeployView: View {
 
             HStack(spacing: 12) {
                 Button("Start Over") { reset() }
-                // Fix 4: if we already have an analysis + edited markers, skip
-                // re-analysis and go straight back to the marker editor. Only fall
+                // Fix 4: if we already have an analysis + edited marks, skip
+                // re-analysis and go straight back to the timeline editor. Only fall
                 // back to a full re-analyze when there's nothing to restore.
                 Button("Retry") {
-                    if analysis != nil && !markers.isEmpty {
+                    if analysis != nil && !marks.isEmpty {
                         phase = .reviewMarkers
                     } else {
                         startAnalyze()
@@ -547,13 +546,9 @@ struct VideoDeployView: View {
                     request,
                     seams: .live(settings: settings),
                     onProgress: { step in Task { @MainActor in updateStep(step) } })
-                // Editor needs the video's total duration for the scrubber max.
-                let dur = (try? await AVURLAsset(url: URL(fileURLWithPath: videoPath)).load(.duration))
-                let durSeconds = dur.map { CMTimeGetSeconds($0) } ?? (a.timestamps.last ?? 0)
                 await MainActor.run {
-                    analysis = a
-                    markers = a.timestamps
-                    videoDuration = durSeconds.isFinite && durSeconds > 0 ? durSeconds : (a.timestamps.last ?? 0)
+                    analysis = a.analysis
+                    marks = a.marks
                     phase = .reviewMarkers
                 }
             } catch is CancellationError {
@@ -564,32 +559,24 @@ struct VideoDeployView: View {
         }
     }
 
-    private func startDeploy(editedTimestamps: [Double]) {
+    private func startDeploy(marks edited: [SlideMark]) {
         guard let request = currentRequest, let analysis else { return }
         let settings = (try? FileOperations.loadSettings()) ?? .default
-
-        // Fix 1: write edits back immediately so a cancel→reviewMarkers re-seeds
-        // the editor with what the user last set, not the stale analysis seed.
-        // Fix 3: quantize to the frame grid so the encoder keyframe and the viewer's
-        // {{TS}} rest point are guaranteed to land on the same decoded frame.
-        let quantized = MarkerEditorLogic.quantizeToFrames(editedTimestamps, fps: analysis.fps)
-        markers = quantized
-
+        marks = edited                       // persist edits for cancel→reviewMarkers
         phase = .deploying
         errorMessage = ""
-
         deployTask = Task {
             do {
                 let r = try await VideoDeployer.deploy(
                     request,
                     analysis: analysis,
-                    editedTimestamps: quantized,
+                    marks: edited,
                     settings: settings,
                     seams: .live(settings: settings),
                     onProgress: { step in Task { @MainActor in updateStep(step) } })
                 await MainActor.run { finish(r, settings: settings) }
             } catch is CancellationError {
-                await MainActor.run { phase = .reviewMarkers }   // keep the edited markers
+                await MainActor.run { phase = .reviewMarkers }
             } catch {
                 await MainActor.run { errorMessage = error.localizedDescription; phase = .error }
             }
@@ -658,8 +645,7 @@ struct VideoDeployView: View {
         isProbing = false
         copied = nil
         analysis = nil
-        markers = []
-        videoDuration = 0
+        marks = []
         currentRequest = nil
     }
 }
