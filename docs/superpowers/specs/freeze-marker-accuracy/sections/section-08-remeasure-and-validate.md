@@ -138,3 +138,10 @@ If either manual gate fails, STOP and report — do not merge.
 - `swift-app/Tests/Fixtures/decks/` — NEW captured real-deck grid-sequence fixtures (cut / cross-fade / build), small (grids, not videos).
 - `swift-app/docs/superpowers/specs/freeze-marker-accuracy/harness-triage.md` — EDIT: append the final locked parameter set + harness evidence.
 - No production-source changes are expected here. If re-measurement reveals a parameter must change, make the change in the owning module (FrameSignal / AdaptiveThreshold / BoundaryDetector / RestSelector / HoldDetector) from its section, re-run the full validation pass, and record the revised value in `harness-triage.md`.
+---
+## As-built notes (2026-06-30)
+Ran the harness LIVE on the real test deck — proved count==slideCount (10/10), strictly-increasing,
+all-valid end-to-end. The live run caught a harness mis-mapping (anchor→mark by holdStart, stale after
+the §07 Rest≠anchor change) → fixed to consume detectDetailed 1:1 + thread real probed fps. Added
+SeedRegressionTests (3×3 archetypes: count / validity / Rest-not-in-transition). harness-triage.md holds
+the real-deck numbers + the deferred parameter-lock + the manual gates (eyeball + iPhone). 129/129 green.

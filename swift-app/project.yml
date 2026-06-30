@@ -71,6 +71,10 @@ targets:
       - path: Sources/Services/GridSampler.swift
       - path: Sources/Services/StillsMatch.swift
       - path: Sources/Services/HoldDetector.swift
+      - path: Sources/Services/FrameSignal.swift
+      - path: Sources/Services/AdaptiveThreshold.swift
+      - path: Sources/Services/BoundaryDetector.swift
+      - path: Sources/Services/RestSelector.swift
       - path: Sources/Services/VideoTimestampDeriver.swift
       - path: Sources/Models/SlideMark.swift
       - path: Sources/Models/VideoAnalysis.swift

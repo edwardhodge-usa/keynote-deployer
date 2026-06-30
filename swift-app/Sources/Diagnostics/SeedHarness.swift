@@ -25,8 +25,11 @@ enum SeedHarness {
             $0.path.compare($1.path, options: .numeric) == .orderedAscending
         }
 
-        // 2. Sample the video frames, then each still (one grid per still).
+        // 2. Probe the real fps (drives the detector's min-hold + far-threshold), then sample
+        //    the video frames and each still (one grid per still).
         try Task.checkCancellation()
+        let probedFps = (try? await encoder.probe(url: input.videoURL).fps) ?? 30
+        let fps = probedFps > 0 ? probedFps : 30
         let frameGrids = try await encoder.sampleGrids(url: input.videoURL)
         let bound = frameGrids.count
 
@@ -41,21 +44,18 @@ enum SeedHarness {
             stillGrids.append(first)
         }
 
-        // 3. DP-match stills → frames, then the CURRENT detector → marks (the seed
-        //    we are diagnosing). Derive collisions from the RAW anchors, since the
-        //    detector may dedup colliding anchors (the count bug we are measuring).
+        // 3. DP-match stills → frames, then the adaptive detector. detectDetailed returns
+        //    marks + per-slide flags PARALLEL to the (sorted) anchors — one mark per slide —
+        //    so we consume them 1:1 (the detector's Rest = a settled frame ≠ the anchor, so
+        //    a holdStart→anchor lookup would mis-map; use the parallel arrays directly).
         try Task.checkCancellation()
         let anchors = try StillsMatch.matchStillsToFrames(stillGrids, frameGrids)
-        let marks = HoldDetector.detect(frameGrids: frameGrids, anchors: anchors, frameCount: bound)
-
-        // Map a (clamped) anchor frame → its produced mark. The current detector
-        // emits one mark per DISTINCT anchor with holdStart == the clamped anchor,
-        // so key marks by holdStart and fall back to the nearest.
-        var markByStart: [Int: SlideMark] = [:]
-        for m in marks { markByStart[m.holdStart] = m }
+        let detail = HoldDetector.detectDetailed(frameGrids: frameGrids, anchors: anchors, frameCount: bound, fps: fps)
+        let marks = detail.marks
+        let sortedAnchors = anchors.sorted()   // detectDetailed sorts internally; mirror it for alignment
 
         let prof = diffProfile(frameGrids)   // consecutive-frame diff, length bound-1
-        let globalMax = prof.max() ?? 0      // scale low-confidence to the deck's own distribution
+        let globalMax = prof.max() ?? 0      // scale the anchor-motion read to the deck's distribution
 
         var perSlide: [PerSlideDiagnostic] = []
         var restGrids: [[Double]] = []
@@ -64,17 +64,16 @@ enum SeedHarness {
             dir: input.outputDir, name: "\(HarnessReport.safeSlug(deckName(input)))-thumbs")
         try FileManager.default.createDirectory(at: thumbsDir, withIntermediateDirectories: true)
 
-        for (i, anchor) in anchors.enumerated() {
+        // marks/flags are 1:1 with sortedAnchors for the realistic n ≤ bound case.
+        let aligned = marks.count == sortedAnchors.count
+        for i in marks.indices {
             try Task.checkCancellation()
+            let mark = marks[i]
+            let anchor = aligned ? sortedAnchors[i] : mark.holdStart
             let clamped = max(0, min(anchor, max(0, bound - 1)))
-            let ownMark = markByStart[clamped]
-            let mark = ownMark ?? nearestMark(marks, to: clamped)
-                ?? SlideMark(holdStart: clamped, holdEnd: clamped)
-            let markReused = ownMark == nil   // borrowed a neighbor's mark (honest signal)
-
-            let collided = i > 0 && anchors[i] == anchors[i - 1]
+            let collided = detail.collidedWithPrevious[safe: i] ?? false
+            let lowConfidence = detail.lowConfidenceMatch[safe: i] ?? false
             let profile = profileAround(clamped, prof: prof)
-            let lowConfidence = isLowConfidence(at: clamped, prof: prof, globalMax: globalMax)
 
             let restGrid = frameGrids[safe: mark.holdStart] ?? []
             let goGrid = frameGrids[safe: mark.holdEnd] ?? []
@@ -88,7 +87,7 @@ enum SeedHarness {
                 slideIndex: i,
                 matchedAnchorFrame: anchor,
                 anchorCollidedWithPrevious: collided,
-                markReused: markReused,
+                markReused: false,
                 lowConfidenceMatch: lowConfidence,
                 seededRest: mark.holdStart,
                 seededGo: mark.holdEnd,

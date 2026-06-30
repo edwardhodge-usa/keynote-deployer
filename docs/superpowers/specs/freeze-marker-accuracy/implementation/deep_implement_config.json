@@ -40,6 +40,10 @@
     "section-06-boundary-detector": {
       "status": "complete",
       "commit_hash": "838c953"
+    },
+    "section-07-holddetector-rewrite": {
+      "status": "complete",
+      "commit_hash": "549d6ad"
     }
   },
   "pre_commit": {
