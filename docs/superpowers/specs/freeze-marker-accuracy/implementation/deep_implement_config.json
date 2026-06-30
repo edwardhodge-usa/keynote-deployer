@@ -44,6 +44,10 @@
     "section-07-holddetector-rewrite": {
       "status": "complete",
       "commit_hash": "549d6ad"
+    },
+    "section-08-remeasure-and-validate": {
+      "status": "complete",
+      "commit_hash": "6ad3500"
     }
   },
   "pre_commit": {
