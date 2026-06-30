@@ -28,6 +28,10 @@
     "section-03-frame-signal": {
       "status": "complete",
       "commit_hash": "d204a7a"
+    },
+    "section-04-adaptive-threshold": {
+      "status": "complete",
+      "commit_hash": "4013a35"
     }
   },
   "pre_commit": {

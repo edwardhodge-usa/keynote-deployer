@@ -176,3 +176,8 @@ Relevant files for this task:
 - Consumed by (section-07): `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Sources/Services/HoldDetector.swift`
 
 Key load-bearing facts: grids are raw RGB `0.0...255.0` (32×18×3 = 1728 values; 576 cells); `diffSignal.count == frameGrids.count - 1` indexed over adjacent pairs; sharpness = variance-of-Laplacian on the 576-element row-major luma image, comparable only within a single hold.
+---
+## As-built notes (2026-06-29)
+Implemented as planned. `restFrame(in:diffSignal:frameGrids:margin:)` = argmin localDiff
+(entering+leaving motion) over the hold interior, near-ties (`calmTieBand=0.5`) broken by max
+variance-of-Laplacian on the luma grid. Degenerate/empty-safe. 4 tests, 114/114 green.
