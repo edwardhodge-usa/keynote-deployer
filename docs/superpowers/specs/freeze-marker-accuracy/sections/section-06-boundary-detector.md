@@ -191,3 +191,13 @@ Relevant file paths:
 - Create: `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Tests/BoundaryDetectorTests.swift`
 - Consumes (other sections): `swift-app/Sources/Services/FrameSignal.swift` (section-03), `swift-app/Sources/Services/AdaptiveThreshold.swift` (section-04)
 - Consumed by: `swift-app/Sources/Services/HoldDetector.swift` (section-07)
+---
+## As-built notes (2026-06-29)
+Implemented + reworked after an adversarial review. transitions() = local-ratio hard cuts +
+twin-comparison gradual accumulation (grace 2) + variance-dip vote (short dip = fade, sustained =
+held black slide). KEY FIXES from review: resolve() MERGES same-transition spans (a variance dip
+confirms/extends the fade instead of truncating it → no Rest mid-transition); hard-cut gate uses
+local ratio + hardFloor (catches mixed-magnitude cuts the deck-wide `hard` missed). Also drove a §04
+fix (removed a P90-gap σ term that inflated `hard` on small/spiky signals, missing close cuts).
+9 tests incl. dip-before-fade merge + mixed-magnitude. 123/123 green. localRatios is hard-cut-only;
+sustained fades ride the gradual/twin path. BoundaryDetector is a CANDIDATE detector — §07 owns count.

@@ -40,27 +40,23 @@ enum AdaptiveThreshold {
     static let rescueFraction = 0.5
     /// MAD → σ consistency constant for normal data.
     static let madToSigma = 1.4826
-    /// 90th-percentile gap → σ (z₀.₉ ≈ 1.2816), the MAD-collapse fallback spread.
-    static let p90ToSigma = 1.2816
 
     /// Robust (hard=Tb, gradual=Ts) thresholds from the signal's own distribution.
     ///
-    /// `spread` = the larger of the MAD-based σ and a 90th-percentile-gap σ. The second
-    /// term rescues the common static-dominated case where >50% of values are ~0 → MAD
-    /// collapses to 0 but the upper tail (fade plateau) still carries scale.
-    /// `hard = max(hardFloor, median + kHard·spread, rescueFraction·P95)`. The P95 term
-    /// (NOT raw max — a lone outlier can't set the bar for the whole deck) carries decks
-    /// with sparse hard cuts where even P90 sits in the static region.
+    /// `hard = max(hardFloor, median + kHard·MADσ, rescueFraction·P95)`. The `rescueFraction·P95`
+    /// term is the workhorse for the static-dominated case where MAD collapses to 0 (>50% of
+    /// values ~0) — half of a high percentile is a sound hard floor. P95 (not raw max) so a lone
+    /// outlier can't set the bar for the whole deck; the MAD term refines `hard` upward only when
+    /// there is genuine spread. (An earlier P90-gap-σ term was REMOVED: on a small or
+    /// transition-dense signal the 90th percentile lands ON a spike, inflating `hard` enough to
+    /// MISS real cuts — surfaced by the BoundaryDetector two-close-cuts integration test.)
     /// `gradual = clamp(gradualRatio·hard, gradualFloor, hard−ε)`.
     static func dualThreshold(_ signal: [Double]) -> (hard: Double, gradual: Double) {
         guard !signal.isEmpty else { return (hardFloor, gradualFloor) }
         let med = median(signal)
         let madSigma = madToSigma * median(signal.map { abs($0 - med) })
-        let p90 = percentile(signal, 0.90)
         let p95 = percentile(signal, 0.95)
-        let pctSigma = Swift.max(0, (p90 - med) / p90ToSigma)
-        let spread = Swift.max(madSigma, pctSigma)
-        let hard = Swift.max(hardFloor, med + kHard * spread, rescueFraction * p95)
+        let hard = Swift.max(hardFloor, med + kHard * madSigma, rescueFraction * p95)
         let gradual = Swift.min(Swift.max(gradualRatio * hard, gradualFloor), hard - 1e-9)
         return (hard, gradual)
     }

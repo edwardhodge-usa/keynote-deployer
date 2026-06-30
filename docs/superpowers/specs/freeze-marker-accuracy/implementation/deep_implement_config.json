@@ -32,6 +32,10 @@
     "section-04-adaptive-threshold": {
       "status": "complete",
       "commit_hash": "4013a35"
+    },
+    "section-05-rest-selector": {
+      "status": "complete",
+      "commit_hash": "360cc4e"
     }
   },
   "pre_commit": {
