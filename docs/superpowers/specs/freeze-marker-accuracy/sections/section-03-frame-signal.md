@@ -115,3 +115,10 @@ Relevant absolute paths for this section:
 - Create: `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Tests/FrameSignalTests.swift`
 - Reference (grid shape, do not modify): `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Sources/Services/GridSampler.swift`
 - Reference (test/suite conventions): `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Tests/HoldDetectorTests.swift`
+---
+## As-built notes (2026-06-29)
+Implemented as planned (channels/diffSignal/frameVariance, chroma = 0.5·(|R−G|+|G−B|), weights 1,1,1).
+5 tests, 102/102 green. **Finding:** multi-channel diff does not strictly dominate raw RGB mean-abs
+(a hue swap can leave sat/chroma invariant) → the real dark-fade win is the adaptive threshold (§04)
++ twin-comparison (§06), which key on the small ABSOLUTE per-step diff relative to the deck's own
+distribution. FrameSignal still provides the perceptually-weighted signal + the variance fade-dip vote.

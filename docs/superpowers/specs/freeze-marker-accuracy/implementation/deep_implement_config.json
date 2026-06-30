@@ -20,6 +20,10 @@
     "section-01-harness-and-fixtures": {
       "status": "complete",
       "commit_hash": "d6256a7"
+    },
+    "section-02-quick-wins": {
+      "status": "complete",
+      "commit_hash": "2b44357"
     }
   },
   "pre_commit": {
