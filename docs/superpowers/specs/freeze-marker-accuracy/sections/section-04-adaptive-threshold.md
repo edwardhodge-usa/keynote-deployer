@@ -147,3 +147,13 @@ The only constants you introduce here should be: the MAD multiplier `k_hard`, th
 - Create: `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Tests/AdaptiveThresholdTests.swift`
 - Consumed-input shape comes from (dependency) `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Sources/Services/FrameSignal.swift` (section-03).
 - Downstream consumer (do not edit here): `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Sources/Services/BoundaryDetector.swift` (section-06).
+---
+## As-built notes (2026-06-29)
+Reworked after an adversarial review caught a ship-blocker: the first cut's `noiseFloor=2.0`
+(also the ratio denominator) sat inside the 1.5–2.0 dark-fade band, erasing the target signal.
+Final design: decoupled floors (`ratioDenominatorFloor=0.3`, `hardFloor=0.5`, `gradualFloor=0.3`),
+percentile-based rescue (not raw max → outlier-robust), MAD-collapse handled via a P90-gap σ
+fallback, NTSC-safe rounded window. **Key invariant (test-proven):** `gradual < ~1.8 fade < hard`,
+so a dark fade enters the gradual band and §06's twin-comparison accumulates it. **localRatios is a
+HARD-CUT detector only** (sustained fade = plateau = ratio ~1) — §06 owns the sustained-fade path.
+9 tests incl. the 1.5–2.0 band. 110/110 green.
