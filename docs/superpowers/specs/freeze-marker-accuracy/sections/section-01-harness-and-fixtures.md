@@ -227,3 +227,29 @@ Relevant absolute paths for the implementer:
 - Create: `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Sources/Diagnostics/SeedHarness.swift`, `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Sources/Diagnostics/HarnessReport.swift`, `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/HarnessCLI/main.swift`, `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Tests/SeedHarnessTests.swift`, `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Tests/Fixtures/decks/`, `/Users/EdwardHodge_1/Code/keynote-deployer/docs/superpowers/specs/freeze-marker-accuracy/harness-triage.md`
 - Edit: `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/project.yml`
 - Reference (existing patterns — do not modify): `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Sources/Services/VideoEncoding.swift`, `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Sources/Services/VideoTimestampDeriver.swift`, `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Sources/Services/HoldDetector.swift`, `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Tests/VideoDeployerTests.swift` (StubEncoder pattern), `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Tests/HoldDetectorTests.swift`
+---
+
+## As-built notes (2026-06-29)
+
+**Files created:** `Sources/Diagnostics/SeedHarness.swift`, `Sources/Diagnostics/HarnessReport.swift`,
+`HarnessCLI/main.swift`, `Tests/SeedHarnessTests.swift` (6 tests), `Tests/Fixtures/SeedFixtures.swift`
+(synthetic clean-cut / cross-fade-on-dark / build archetypes for sections 03–08). `project.yml`: added
+the `kd-seed-harness` tool target (builds clean). 93/93 suite green.
+
+**Major ground-truth correction (carried to sections 07/08):** `StillsMatch` produces
+strictly-increasing anchors AND the current `HoldDetector` clamps `holdEnd < next holdStart`, so
+**`markCount == slideCount` is structurally guaranteed** — the "two stills → same frame → dedup"
+count-loss is UNREACHABLE, and the overlap-drop never fires on valid input either. So Edward's "wrong
+COUNT" symptom is almost certainly **MarkStore shadowing** (stale saved marks), fixed in section 02 —
+not an algorithmic count-loss. `anchorCollidedWithPrevious` is relabeled as an invariant guard (always
+false); an honest `markReused` flag was added (a slide that borrowed a neighbor's mark).
+
+**Deviations from the plan:**
+- Added `markReused` to `PerSlideDiagnostic` (review finding: the original "collision = count-loss signal"
+  was dead). Low-confidence heuristic rescaled to the deck's GLOBAL diff distribution (an absolute 1.0
+  floor disabled it on the dark-fade decks this feature targets).
+- ASCII diff bars now print the absolute max (uncalibrated bars misread a flat profile as max motion).
+- **Deferred to the live pass (not in this section):** the CAPTURED real-fade-deck grid fixtures and
+  `harness-triage.md` — both require running `kd-seed-harness` on the real iCloud deck (the binary is
+  built and ready). The synthetic `SeedFixtures` cover the offline detector suites; the real deck is the
+  accuracy oracle per section 08.

@@ -1,0 +1,29 @@
+{
+  "plugin_root": "/Users/EdwardHodge_1/.claude/plugins/cache/piercelamb-plugins/deep-implement/0.2.1",
+  "sections_dir": "/Users/EdwardHodge_1/Code/keynote-deployer/docs/superpowers/specs/freeze-marker-accuracy/sections",
+  "target_dir": "/Users/EdwardHodge_1/Code/keynote-deployer",
+  "state_dir": "/Users/EdwardHodge_1/Code/keynote-deployer/docs/superpowers/specs/freeze-marker-accuracy/implementation",
+  "git_root": "/Users/EdwardHodge_1/Code/keynote-deployer",
+  "commit_style": "conventional",
+  "test_command": "uv run pytest",
+  "sections": [
+    "section-01-harness-and-fixtures",
+    "section-02-quick-wins",
+    "section-03-frame-signal",
+    "section-04-adaptive-threshold",
+    "section-05-rest-selector",
+    "section-06-boundary-detector",
+    "section-07-holddetector-rewrite",
+    "section-08-remeasure-and-validate"
+  ],
+  "sections_state": {},
+  "pre_commit": {
+    "present": false,
+    "type": "none",
+    "config_file": null,
+    "native_hook": null,
+    "may_modify_files": false,
+    "detected_formatters": []
+  },
+  "created_at": "2026-06-30T04:35:31.982617+00:00"
+}
