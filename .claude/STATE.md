@@ -1,31 +1,31 @@
 # Session State
 
-**Last updated:** 2026-06-28 14:00
-**Goal:** Fix the video deck viewer on iPhone (Framer client-page embeds) + shrink decks. SHIPPED v1.2.1.
-**Plan:** None yet for next work — see "Next Step" (marker editor = 1.3.0).
+**Last updated:** 2026-06-29 11:00
+**Goal:** Build the AE-style marker/timeline editor (v1.3.0) into the app, iterated live with Edward via an HTML mockup.
+**Plan:** docs/superpowers/plans/2026-06-28-timeline-editor.md (built); the live-iteration changes are committed on top.
 
 ## Current Task
-**What:** Deck viewer iOS fixes + smooth playback + CRF16 encoder → **v1.2.1 notarized, installed (/Applications), pushed, GitHub release + Sparkle appcast live.**
-**Status:** COMPLETE. 68/68 tests. Commits `6b88bfe` (1.2.1 feature) + `4774da6` (lesson). Tag `v1.2.1`.
+**What:** Interactive timeline editor (layout A) — built from an approved HTML mockup, refined through ~10 live test cycles on the real 39-slide ILS deck.
+**Status:** COMPLETE on branch `feat/timeline-editor` (merged-to-main + iPhone gate still pending). 87 tests green, Release build PASS. Commit `d52b1dc` (this session) atop the deep-implement timeline branch.
 
-**Key files (all in `swift-app/`):**
-- `Sources/Resources/video-viewer-template.html` — the viewer (blob loader, navBusy lock, stall-aware clock, paintFrame, poster, edge-tap, REST_BIAS=0.08)
-- `Sources/Services/FFmpegVideoEncoder.swift` — CRF16 `-bf 0 -g 60`, `isAvailable()`
-- `Sources/Services/VideoDeployer.swift` — ffmpeg-preferred seam (`.live`)
-- `Sources/Services/VideoViewerGenerator.swift` + `Tests/Fixtures/video-viewer-golden-*.html` (byte-parity)
-- `Sources/Services/VideoTimestampDeriver.swift` — produces per-slide `TS` (the markers the editor will let users adjust)
+**Key files (swift-app/):**
+- `Sources/Views/TimelineEditorView.swift` — editor: zoom timeline, draggable playhead (scrub), Play-to-next sweep, First, drag Rest/Go ticks, ±frame, Split-at-playhead, Shift-click holds→Merge, right-click sections→Set length…(single/multi), Undo (⌘Z), ScrollView+pinned footer.
+- `Sources/Services/HoldDetector.swift` — anchor-anchored seed (Rest=DP anchor, Go=forward motion onset + default transition for fades).
+- `Sources/Services/MarkStore.swift` — persist marks by deck fingerprint (frames+fps+size); save on deploy, auto-load on re-drop.
+- `Sources/Views/VideoDeployView.swift` — full-width reviewMarkers phase + persistence wiring.
+- `Sources/App/KeynoteDeployerApp.swift` — defaultSize 1100×600.
 
 ## Context (for next session)
-- **Root cause of ALL the stutter/skip/freeze: mid-playback network buffering** (range-fetching unbuffered regions). Fixed by loading the whole deck into an in-memory blob and playing from it. "first-bad/retry-good" = caching, always. (Full arc in CLAUDE.md 2026-06-28.)
-- **Rest-frame placement is still imperfect on a few slides** — auto-derived `TS` lands on/near a transition for some; a global `REST_BIAS` constant CANNOT fix it (tried 0 and 0.08 — both wrong for different slides). This is the open problem the marker editor solves.
-- Encoder requires ffmpeg installed (Edward has it); AVFoundation is the no-ffmpeg fallback (bigger, B-frames).
-- Earlier this session (separate): imaginelab-portal UI-debt cleanup merged to main — done, unrelated to next work.
-- Live test rig still up: `wrapper-iota-ten.vercel.app/realdeck.html` (+ `/compare.html`); throwaway Vercel projects `realdeck-crf16`/`realdeck-viewer`/`viewers-opal`/`wrapper-iota-ten` — keep for marker-editor testing, delete when done.
+- **HoldDetector motion-diff FAILS on fade-on-dark-bg decks** (real ILS deck): per-frame diff stays below threshold so transitions read as "still" → holds abutted (gap=1f), one purple bar, Rest could land mid-fade. FIX = Rest is the DP anchor verbatim (settled), Go = forward motion onset, default ~15f transition band when no motion detectable. Proven via a headless harness on the REAL deck (synthetic deck was too clean to expose it).
+- **macOS dev-launch double-window:** `osascript ... activate "Keynote Deployer"` launches the INSTALLED /Applications v1.0.0 copy via LaunchServices alongside the /tmp dev build. Launch by PATH only (`open -n <path>`), never activate-by-name. Stale `/Applications/KeynoteDeployer.app` v1.0.0 should be replaced once v1.3.0 ships.
+- **SwiftUI window grew past screen** when the editor content was tall → wrap editor in ScrollView + pinned footer so window min-height stays small + defaultSize 600.
+- Test deck for the editor: `~/Desktop/kd-test-deck/` (deck.mp4 + stills/); real deck at iCloud `…/Quals Decks/2026 Master Quals /Keynote Video for Portal/ILS_Quals 2026 V3.m4v` (+ V3 Images).
+- Dev build runs from `/tmp/kd-build/Build/Products/Debug/KeynoteDeployer.app`.
 
 ## Next Step
-**Build the marker / timeline editor (v1.3.0).** Add a **"Review markers"** phase to the Deploy Video tab between Analyze and Encode: show the auto-derived per-slide rest markers on a scrubber/filmstrip; let the user **drag / add / remove** each with a live frame preview before encoding. The approved marker becomes **BOTH** the viewer's rest point **AND** the forced keyframe (single source of truth → kills REST_BIAS guessing + the off-keyframe-seek bug class). Start `/brainstorm` → `/deep-plan`. Pieces exist: `VideoTimestampDeriver` (markers), `VideoPoster` (frame extraction), `VideoDeployView` (the tab), AVPlayerView NSViewRepresentable pattern.
+Run the **live iPhone cross-origin-iframe gate** (the only oracle): real deck → edit markers → Encode & Deploy → verify on iPhone that Rest lands on settled slides + transitions play smooth. If good, merge `feat/timeline-editor` → main, push, then `/notarize` for v1.3.0 (also replaces the stale /Applications v1.0.0).
 
-## Verification Goals (marker editor)
-- [ ] User sees all N auto-markers on a timeline + can drag/add/remove before encode.
-- [ ] The chosen marker is what the encoder forces a keyframe at AND what the viewer rests on (no REST_BIAS offset).
-- [ ] Validated on the real 39-slide deck, on iPhone, in a cross-origin iframe.
+## Verification Goals
+- [x] Editor usable on the real 39-slide deck (playhead/scrub/Split/Merge/Set length/Undo/persistence) — Edward live-approved.
+- [x] HoldDetector seeds Rest on settled anchors + visible transitions on the real deck.
+- [ ] iPhone cross-origin-iframe: every Rest on a settled slide, transitions smooth (the original 1.2.x bug class) — NOT yet run.
