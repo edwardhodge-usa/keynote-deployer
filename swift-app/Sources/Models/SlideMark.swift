@@ -4,7 +4,7 @@ import Foundation
 /// slide i and i+1 is the gap (holdEnd_i, holdStart_{i+1}). holdStart is the rest
 /// point + forced keyframe; holdEnd is the start of the outgoing animation (also a
 /// forced keyframe the viewer seeks to before playing the transition).
-struct SlideMark: Sendable, Equatable {
+struct SlideMark: Sendable, Equatable, Codable {
     var holdStart: Int
     var holdEnd: Int
 }

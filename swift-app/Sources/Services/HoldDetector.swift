@@ -1,10 +1,20 @@
 import Foundation
 
-/// Seeds per-slide hold spans from frame motion. Pure over the same 32×18 RGB grids
-/// the encoder's `sampleGrids` produces, so it's unit-testable offline. Best-effort:
-/// the result is a SEED the user hand-tunes on the timeline, never authoritative
-/// (the constant-bg detection caveat in CLAUDE.md doesn't bite — the human corrects
-/// it). Slide COUNT comes from `anchors` (the stills DP-match), not from detection.
+/// Seeds per-slide hold spans from the stills DP-match anchors + forward motion.
+/// Pure over the same 32×18 RGB grids the encoder's `sampleGrids` produces, so it's
+/// unit-testable offline. Best-effort: the result is a SEED the user hand-tunes on
+/// the timeline.
+///
+/// Design (learned from the real fade-heavy deck): the DP **anchor** is the frame a
+/// slide's still matched — a reliably *settled* frame, so it is taken verbatim as
+/// `holdStart` (the Rest point). The Rest must never be guessed by expanding a
+/// low-motion run backward — on a deck whose transitions are cross-fades on a dark
+/// background, per-frame motion stays below any threshold, so a backward expansion
+/// runs into the *previous* transition and Rest lands mid-fade (the exact bug this
+/// feature exists to kill). `holdEnd` (Go) is found by expanding FORWARD from the
+/// anchor to where motion begins; when no motion is detectable before the next slide
+/// (a fade), it falls back to a default transition window so the timeline still shows
+/// an editable green transition band instead of a 1-frame sliver.
 enum HoldDetector {
 
     /// Mean absolute per-component diff between two grids of equal length.
@@ -15,56 +25,56 @@ enum HoldDetector {
         return sum / Double(a.count)
     }
 
+    /// - Parameters:
+    ///   - anchors: DP-matched settled frame per slide (strictly increasing).
+    ///   - motionThreshold: per-frame grid diff above which a frame counts as "moving".
+    ///   - defaultTransition: fallback transition length (frames) when a fade can't be
+    ///     detected — the green band before the next slide's Rest.
     static func detect(frameGrids: [[Double]],
                        anchors: [Int],
                        frameCount: Int,
-                       motionThreshold: Double = 6.0) -> [SlideMark] {
+                       motionThreshold: Double = 6.0,
+                       defaultTransition: Int = 15) -> [SlideMark] {
         guard !anchors.isEmpty, frameCount > 0 else { return [] }
-        let sorted = anchors.sorted()
 
-        // Deduplicate adjacent duplicates so [5,5] → [5] (one slide, not two).
+        // Deduplicate (and sort) so two stills matched to the same frame → one slide.
         var deduped: [Int] = []
-        for v in sorted { if deduped.last != v { deduped.append(v) } }
+        for v in anchors.sorted() { if deduped.last != v { deduped.append(v) } }
 
-        // Shared upper bound so frameCount != frameGrids.count can't desync the clamps.
+        // Shared upper bound so frameCount != frameGrids.count can't desync clamps.
         let bound = min(frameCount, frameGrids.count)
         guard bound > 0 else { return [] }
 
-        // 1. Expand each anchor into its low-motion run.
-        var marks: [SlideMark] = deduped.map { anchor in
-            let a = max(0, min(anchor, bound - 1))
-            var start = a, end = a
-            while start > 0, diff(frameGrids[start - 1], frameGrids[start]) < motionThreshold { start -= 1 }
-            while end < bound - 1, diff(frameGrids[end], frameGrids[end + 1]) < motionThreshold { end += 1 }
-            return SlideMark(holdStart: start, holdEnd: end)
+        let n = deduped.count
+        var marks: [SlideMark] = []
+        marks.reserveCapacity(n)
+        for i in 0..<n {
+            let hs = max(0, min(deduped[i], bound - 1))          // Rest = the anchor, verbatim
+            let nextA = (i < n - 1) ? deduped[i + 1] : bound      // exclusive upper limit
+            let lastBefore = min(bound - 1, nextA - 1)            // last frame we may use for Go
+            if lastBefore <= hs {
+                marks.append(SlideMark(holdStart: hs, holdEnd: hs)) // no room: zero-length hold
+                continue
+            }
+            // Forward-expand from the anchor through the static hold until motion starts.
+            var e = hs
+            while e < lastBefore, diff(frameGrids[e], frameGrids[e + 1]) < motionThreshold { e += 1 }
+            var he: Int
+            if e >= lastBefore {
+                // No motion found before the next slide (a fade) → default transition band.
+                he = max(hs, lastBefore - defaultTransition)
+            } else {
+                he = e                                            // motion onset = Go
+            }
+            he = max(hs, min(he, lastBefore))
+            marks.append(SlideMark(holdStart: hs, holdEnd: he))
         }
 
-        // 2. Resolve collisions: if slide i's hold reaches into slide i+1's, cut both
-        //    at the midpoint of their anchors.
-        for i in 0..<(marks.count - 1) where marks[i].holdEnd >= marks[i + 1].holdStart {
-            let mid = (deduped[i] + deduped[i + 1]) / 2
-            marks[i].holdEnd = min(marks[i].holdEnd, mid)
-            marks[i + 1].holdStart = max(marks[i + 1].holdStart, mid + 1)
-        }
-
-        // 3. Final safety: enforce ordering + frame range so the seed is always valid.
-        //    Order: push past previous holdEnd FIRST, then clamp into [0, bound-1].
-        //    Clamping before the push allowed holdStart to escape the range when squeezed.
-        for i in marks.indices {
-            // a. Enforce ordering: start must come after the previous slide's end.
-            marks[i].holdStart = max(marks[i].holdStart, i > 0 ? marks[i - 1].holdEnd + 1 : 0)
-            // b. Keep end >= start before clamping.
-            marks[i].holdEnd = max(marks[i].holdEnd, marks[i].holdStart)
-            // c. Clamp both into [0, bound-1].
-            marks[i].holdStart = max(0, min(marks[i].holdStart, bound - 1))
-            marks[i].holdEnd   = max(0, min(marks[i].holdEnd,   bound - 1))
-            // d. If clamping squeezed start past end, pin end to start.
-            if marks[i].holdStart > marks[i].holdEnd { marks[i].holdEnd = marks[i].holdStart }
-        }
-
-        // 4. Drop any mark that can't fit without overlapping its predecessor.
-        //    For the impossible over-packed case (deduped.count > bound), this ensures
-        //    the result is always a valid, non-overlapping array.
+        // anchors are strictly increasing so holdStart is too, and each holdEnd < next
+        // holdStart by construction. The only exception is the impossible over-packed
+        // case (more distinct anchors than frames, so several clamp to bound-1): drop
+        // any mark that can't fit without overlapping its predecessor, guaranteeing a
+        // strictly-increasing, valid result for ALL inputs.
         var result: [SlideMark] = []
         for mark in marks {
             if result.isEmpty || mark.holdStart > result.last!.holdEnd {

@@ -3,63 +3,58 @@ import Testing
 
 @Suite("HoldDetector")
 struct HoldDetectorTests {
-    // Build a frame sequence: frames are flat "color" grids; a transition is a ramp.
-    // grid value g repeated 1728× → diff between consecutive = |g1-g0| per component.
+    // Flat "color" grids; a transition is a value ramp. diff between consecutive = |Δ|.
     private func grid(_ v: Double) -> [Double] { [Double](repeating: v, count: 32 * 18 * 3) }
 
-    @Test("detects a low-motion hold around an anchor, bounded by motion ramps")
-    func detectsHold() {
-        // frames 0..2 = value 10 (hold A), 3..5 = ramp 40/70/100 (transition),
-        // 6..9 = value 100 (hold B). anchors at the settled frames 1 and 8.
-        let grids = [grid(10), grid(10), grid(10), grid(40), grid(70), grid(100), grid(100), grid(100), grid(100), grid(100)]
-        let marks = HoldDetector.detect(frameGrids: grids, anchors: [1, 8], frameCount: grids.count, motionThreshold: 6.0)
+    @Test("Rest = the anchor; Go = forward motion onset")
+    func restIsAnchorGoIsMotionOnset() {
+        // flat 0..3 (10), motion at 4 (50), flat 7..9 (10). anchors at settled 0 and 8.
+        let grids = [grid(10), grid(10), grid(10), grid(10), grid(50), grid(50), grid(50), grid(10), grid(10), grid(10)]
+        let marks = HoldDetector.detect(frameGrids: grids, anchors: [0, 8], frameCount: grids.count, motionThreshold: 6.0)
         #expect(marks.count == 2)
-        // hold A is the flat 0..2 run; hold B is the flat 5..9 run (100s)
-        #expect(marks[0].holdStart == 0 && marks[0].holdEnd == 2)
-        #expect(marks[1].holdStart == 5 && marks[1].holdEnd == 9)
+        // slide 0: Rest=anchor 0; forward stops where motion begins (3→4 jump) → Go=3
+        #expect(marks[0].holdStart == 0 && marks[0].holdEnd == 3)
+        // slide 1: Rest=anchor 8 (NOT expanded backward into the prior motion)
+        #expect(marks[1].holdStart == 8)
+        #expect(marks[0].holdEnd < marks[1].holdStart)   // a real transition gap exists
         #expect(SlideMarkLogic.isValid(marks, frameCount: grids.count))
     }
 
-    @Test("degenerate: an anchor with motion on both sides collapses to itself")
+    @Test("fade (no detectable motion) falls back to a default transition band")
+    func fadeUsesDefaultTransition() {
+        // entirely flat 40-frame clip (a fade reads as no motion), anchors 0 and 30.
+        let grids = (0..<40).map { _ in grid(10) }
+        let marks = HoldDetector.detect(frameGrids: grids, anchors: [0, 30], frameCount: 40,
+                                        motionThreshold: 6.0, defaultTransition: 15)
+        #expect(marks.count == 2)
+        // Rest stays on the anchors; slide 0 gets a default green band before slide 1.
+        #expect(marks[0].holdStart == 0)
+        #expect(marks[0].holdEnd == 14)            // lastBefore(29) − default(15)
+        #expect(marks[1].holdStart == 30)          // next Rest = its anchor, never mid-fade
+        #expect(marks[1].holdEnd < 40)
+        #expect(SlideMarkLogic.isValid(marks, frameCount: 40))
+    }
+
+    @Test("anchor with motion immediately after collapses to a zero-length hold")
     func degenerate() {
-        let grids = [grid(0), grid(50), grid(0)] // anchor 1 is a spike — no flat run
+        let grids = [grid(0), grid(50), grid(0)]   // anchor 1 has motion on both sides
         let marks = HoldDetector.detect(frameGrids: grids, anchors: [1], frameCount: 3, motionThreshold: 6.0)
         #expect(marks == [SlideMark(holdStart: 1, holdEnd: 1)])
     }
 
-    @Test("colliding runs are cut at the anchor midpoint")
-    func collisionCut() {
-        // entire clip is flat (no motion) with two anchors → both runs want the whole
-        // clip; they must be split at the midpoint of anchors 2 and 8 → mid=(2+8)/2=5.
-        let grids = (0..<11).map { _ in grid(10) }
-        let marks = HoldDetector.detect(frameGrids: grids, anchors: [2, 8], frameCount: 11, motionThreshold: 6.0)
-        #expect(marks.count == 2)
-        #expect(marks[0].holdEnd < marks[1].holdStart)
-        // Pin the exact split: slide 0 ends at 5, slide 1 starts at 6.
-        #expect(marks[0].holdEnd == 5 && marks[1].holdStart == 6)
-        #expect(SlideMarkLogic.isValid(marks, frameCount: 11))
-    }
-
-    @Test("duplicate anchors collapse to a single slide and produce valid marks")
+    @Test("duplicate anchors collapse to a single slide and stay valid")
     func duplicateAnchors() {
-        // [5, 5] deduplicates to [5]; the flat 10-frame clip expands to one span.
         let grids = (0..<10).map { _ in grid(10) }
         let marks = HoldDetector.detect(frameGrids: grids, anchors: [5, 5], frameCount: 10, motionThreshold: 6.0)
-        // Dedup collapses [5,5] → [5] → exactly 1 SlideMark.
         #expect(marks.count == 1)
+        #expect(marks[0].holdStart == 5)
         #expect(SlideMarkLogic.isValid(marks, frameCount: 10))
     }
 
     @Test("over-packed anchors stay valid (drops unfittable spans)")
     func overPackedAnchorsStayValid() {
-        // More anchors than available frames: 3 anchors [0, 1, 2], but only 2 frames.
-        // The deduped anchors will compete for space; output must always be valid.
-        let anchors = [0, 1, 2]
-        let frameCount = 2
-        let grids = [grid(10), grid(10)] // 2 flat grids
-        let marks = HoldDetector.detect(frameGrids: grids, anchors: anchors, frameCount: frameCount, motionThreshold: 6.0)
-        // The result may have fewer than 3 slides (impossible to fit all three without overlap),
-        // but it MUST be valid.
-        #expect(SlideMarkLogic.isValid(marks, frameCount: frameCount))
+        let marks = HoldDetector.detect(frameGrids: [grid(10), grid(10)], anchors: [0, 1, 2],
+                                        frameCount: 2, motionThreshold: 6.0)
+        #expect(SlideMarkLogic.isValid(marks, frameCount: 2))
     }
 }

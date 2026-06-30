@@ -115,6 +115,7 @@ struct VideoDeployView: View {
     @State private var analysis: VideoAnalysis?
     @State private var marks: [SlideMark] = []
     @State private var currentRequest: VideoDeployRequest?
+    @State private var markFingerprint = ""   // identifies this deck for saved-mark reuse
     /// The preset (from a Projects "Update") is one-shot: once applied to a video,
     /// a subsequent video in the same session must NOT inherit it (it would deploy
     /// over the wrong Vercel project). `presetProjectName` is frozen at construction,
@@ -128,21 +129,29 @@ struct VideoDeployView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                switch phase {
-                case .drop: dropPhase
-                case .confirm: confirmPhase
-                case .analyzing: analyzingPhase
-                case .reviewMarkers: reviewMarkersPhase
-                case .deploying: deployingPhase
-                case .complete: completePhase
-                case .error: errorPhase
+        Group {
+            if phase == .reviewMarkers {
+                // The timeline editor owns the whole window (no 520pt card / ScrollView).
+                reviewMarkersPhase
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        switch phase {
+                        case .drop: dropPhase
+                        case .confirm: confirmPhase
+                        case .analyzing: analyzingPhase
+                        case .reviewMarkers: EmptyView()   // handled above (full-width)
+                        case .deploying: deployingPhase
+                        case .complete: completePhase
+                        case .error: errorPhase
+                        }
+                    }
+                    .padding(32)
+                    .frame(maxWidth: 520)
+                    .frame(maxWidth: .infinity)
                 }
             }
-            .padding(32)
-            .frame(maxWidth: 520)
-            .frame(maxWidth: .infinity)
         }
         .navigationTitle("Deploy Video")
         .onDisappear { deployTask?.cancel() }
@@ -542,7 +551,14 @@ struct VideoDeployView: View {
                     onProgress: { step in Task { @MainActor in updateStep(step) } })
                 await MainActor.run {
                     analysis = a.analysis
-                    marks = a.marks
+                    // Reuse saved edits for this exact deck (same frames+fps+size); else seed.
+                    let fp = MarkStore.fingerprint(path: request.videoPath, frameCount: a.analysis.frameCount, fps: a.analysis.fps)
+                    markFingerprint = fp
+                    if let saved = MarkStore.load(fp), SlideMarkLogic.isValid(saved, frameCount: a.analysis.frameCount) {
+                        marks = saved
+                    } else {
+                        marks = a.marks
+                    }
                     phase = .reviewMarkers
                 }
             } catch is CancellationError {
@@ -557,6 +573,7 @@ struct VideoDeployView: View {
         guard let request = currentRequest, let analysis else { return }
         let settings = (try? FileOperations.loadSettings()) ?? .default
         marks = edited                       // persist edits for cancel→reviewMarkers
+        if !markFingerprint.isEmpty { MarkStore.save(edited, for: markFingerprint) }  // reuse next time
         phase = .deploying
         errorMessage = ""
         deployTask = Task {

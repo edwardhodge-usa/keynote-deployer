@@ -13,7 +13,7 @@ struct KeynoteDeployerApp: App {
         .modelContainer(for: [HistoryEntry.self])
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unified)
-        .defaultSize(width: 1100, height: 1000)
+        .defaultSize(width: 1100, height: 600)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("New Deployment") {
