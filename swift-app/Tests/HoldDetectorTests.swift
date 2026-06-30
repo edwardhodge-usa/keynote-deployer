@@ -1,60 +1,94 @@
 import Testing
+import Foundation
 @testable import KeynoteDeployer
 
-@Suite("HoldDetector")
+/// Section 07 — HoldDetector rewrite. The detector now orchestrates FrameSignal →
+/// BoundaryDetector → RestSelector. Contract: ONE mark per anchor (never a silent
+/// dedup-drop), explicit first/last boundaries, valid strictly-increasing spans.
+/// Small synthetic decks; fps=10 so min-hold (=5 frames) fits the short fixtures.
+@Suite("Section 07 — HoldDetector")
 struct HoldDetectorTests {
-    // Flat "color" grids; a transition is a value ramp. diff between consecutive = |Δ|.
-    private func grid(_ v: Double) -> [Double] { [Double](repeating: v, count: 32 * 18 * 3) }
 
-    @Test("Rest = the anchor; Go = forward motion onset")
-    func restIsAnchorGoIsMotionOnset() {
-        // flat 0..3 (10), motion at 4 (50), flat 7..9 (10). anchors at settled 0 and 8.
-        let grids = [grid(10), grid(10), grid(10), grid(10), grid(50), grid(50), grid(50), grid(10), grid(10), grid(10)]
-        let marks = HoldDetector.detect(frameGrids: grids, anchors: [0, 8], frameCount: grids.count, motionThreshold: 6.0)
-        #expect(marks.count == 2)
-        // slide 0: Rest=anchor 0; forward stops where motion begins (3→4 jump) → Go=3
-        #expect(marks[0].holdStart == 0 && marks[0].holdEnd == 3)
-        // slide 1: Rest=anchor 8 (NOT expanded backward into the prior motion)
-        #expect(marks[1].holdStart == 8)
-        #expect(marks[0].holdEnd < marks[1].holdStart)   // a real transition gap exists
-        #expect(SlideMarkLogic.isValid(marks, frameCount: grids.count))
+    private static let fps = 10.0
+
+    /// Spans the detector would see, for cross-checking Rest placement.
+    private static func spans(_ frames: [[Double]]) -> [TransitionSpan] {
+        let sig = FrameSignal.diffSignal(frames)
+        let vars = frames.map { FrameSignal.frameVariance($0) }
+        return BoundaryDetector.transitions(diffSignal: sig, variances: vars, fps: fps)
     }
 
-    @Test("fade (no detectable motion) falls back to a default transition band")
-    func fadeUsesDefaultTransition() {
-        // entirely flat 40-frame clip (a fade reads as no motion), anchors 0 and 30.
-        let grids = (0..<40).map { _ in grid(10) }
-        let marks = HoldDetector.detect(frameGrids: grids, anchors: [0, 30], frameCount: 40,
-                                        motionThreshold: 6.0, defaultTransition: 15)
-        #expect(marks.count == 2)
-        // Rest stays on the anchors; slide 0 gets a default green band before slide 1.
-        #expect(marks[0].holdStart == 0)
-        #expect(marks[0].holdEnd == 14)            // lastBefore(29) − default(15)
-        #expect(marks[1].holdStart == 30)          // next Rest = its anchor, never mid-fade
-        #expect(marks[1].holdEnd < 40)
-        #expect(SlideMarkLogic.isValid(marks, frameCount: 40))
+    @Test("one mark per slide — colliding anchors are NOT collapsed (no dedup-drop)")
+    func oneMarkPerSlideNoDrop() {
+        let frames = SeedFixtures.cleanCut()                 // 24 frames, 3 slides
+        // Two anchors in the SAME first hold (no boundary between them).
+        let d = HoldDetector.detectDetailed(frameGrids: frames, anchors: [3, 5], frameCount: frames.count, fps: Self.fps)
+        #expect(d.marks.count == 2)                          // both kept (old code collapsed to 1)
+        #expect(d.collidedWithPrevious.contains(true))       // the shared-hold split is flagged
+        #expect(SlideMarkLogic.isValid(d.marks, frameCount: frames.count))
     }
 
-    @Test("anchor with motion immediately after collapses to a zero-length hold")
+    @Test("tail-clustered / duplicate anchors preserve count when frames allow (no drop)")
+    func clusteredAnchorsPreserveCount() {
+        let frames = SeedFixtures.cleanCut()                 // 24 frames
+        // Duplicate + adjacent anchors near the END — room-reserving normalization must still
+        // yield 3 valid marks (the old code would silently drop the unfittable tail).
+        let d = HoldDetector.detectDetailed(frameGrids: frames, anchors: [21, 21, 22], frameCount: frames.count, fps: Self.fps)
+        #expect(d.marks.count == 3)
+        #expect(SlideMarkLogic.isValid(d.marks, frameCount: frames.count))
+    }
+
+    @Test("marks are valid + strictly increasing on a clean 3-slide deck")
+    func validStrictlyIncreasing() {
+        let frames = SeedFixtures.cleanCut()
+        let marks = HoldDetector.detect(frameGrids: frames, anchors: [4, 12, 20], frameCount: frames.count, fps: Self.fps)
+        #expect(marks.count == 3)
+        #expect(SlideMarkLogic.isValid(marks, frameCount: frames.count))
+    }
+
+    @Test("edge boundaries: first holdStart before the first cut, last holdEnd == frameCount-1")
+    func edgeBoundaries() {
+        let frames = SeedFixtures.cleanCut()                 // cuts at frames 7→8 and 15→16
+        let marks = HoldDetector.detect(frameGrids: frames, anchors: [4, 12, 20], frameCount: frames.count, fps: Self.fps)
+        #expect(marks.first!.holdStart >= 0 && marks.first!.holdStart <= 7)
+        #expect(marks.last!.holdEnd == frames.count - 1)
+    }
+
+    @Test("Go (holdEnd) for an interior slide lands on the detected outgoing cut")
+    func goLandsOnCut() {
+        let frames = SeedFixtures.cleanCut()                 // first cut diff index 7 → span (7,8)
+        let marks = HoldDetector.detect(frameGrids: frames, anchors: [4, 12, 20], frameCount: frames.count, fps: Self.fps)
+        #expect(marks[0].holdEnd == 7)                       // outgoing transition start
+    }
+
+    @Test("Rest never lands inside a transition span (the original mid-fade bug)")
+    func restNotInsideTransition() {
+        let frames = SeedFixtures.crossFadeOnDark()          // a dark cross-fade
+        let sp = Self.spans(frames)
+        let marks = HoldDetector.detect(frameGrids: frames, anchors: [1, 16], frameCount: frames.count, fps: Self.fps)
+        for m in marks {
+            for s in sp {
+                #expect(!(s.start < m.holdStart && m.holdStart < s.end))   // not strictly inside a transition
+            }
+        }
+    }
+
+    @Test("an anchor inside a transition span is flagged low-confidence")
+    func lowConfidenceFlag() {
+        let frames = SeedFixtures.crossFadeOnDark()          // fade roughly frames 4..14
+        let d = HoldDetector.detectDetailed(frameGrids: frames, anchors: [1, 8, 16], frameCount: frames.count, fps: Self.fps)
+        #expect(d.marks.count == 3)
+        #expect(d.lowConfidenceMatch.contains(true))
+    }
+
+    @Test("degenerate / empty inputs are safe")
     func degenerate() {
-        let grids = [grid(0), grid(50), grid(0)]   // anchor 1 has motion on both sides
-        let marks = HoldDetector.detect(frameGrids: grids, anchors: [1], frameCount: 3, motionThreshold: 6.0)
-        #expect(marks == [SlideMark(holdStart: 1, holdEnd: 1)])
-    }
-
-    @Test("duplicate anchors collapse to a single slide and stay valid")
-    func duplicateAnchors() {
-        let grids = (0..<10).map { _ in grid(10) }
-        let marks = HoldDetector.detect(frameGrids: grids, anchors: [5, 5], frameCount: 10, motionThreshold: 6.0)
-        #expect(marks.count == 1)
-        #expect(marks[0].holdStart == 5)
-        #expect(SlideMarkLogic.isValid(marks, frameCount: 10))
-    }
-
-    @Test("over-packed anchors stay valid (drops unfittable spans)")
-    func overPackedAnchorsStayValid() {
-        let marks = HoldDetector.detect(frameGrids: [grid(10), grid(10)], anchors: [0, 1, 2],
-                                        frameCount: 2, motionThreshold: 6.0)
-        #expect(SlideMarkLogic.isValid(marks, frameCount: 2))
+        let frames = SeedFixtures.cleanCut()
+        #expect(HoldDetector.detect(frameGrids: frames, anchors: [], frameCount: frames.count, fps: Self.fps).isEmpty)
+        #expect(HoldDetector.detect(frameGrids: [], anchors: [0], frameCount: 0, fps: Self.fps).isEmpty)
+        let tiny = [SeedFixtures.solid(0, 0, 0), SeedFixtures.solid(0, 0, 0)]
+        let m = HoldDetector.detect(frameGrids: tiny, anchors: [0], frameCount: 2, fps: Self.fps)
+        #expect(m.count == 1)
+        #expect(SlideMarkLogic.isValid(m, frameCount: 2))
     }
 }

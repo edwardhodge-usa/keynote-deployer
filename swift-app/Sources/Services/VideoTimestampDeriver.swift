@@ -78,9 +78,10 @@ enum VideoTimestampDeriver {
             fps: fps,
             frameCount: frameGrids.count
         )
-        // Seed hold spans from frame motion around the DP anchors (frames). Best-effort
-        // seed for the timeline editor; the user hand-tunes.
-        let marks = HoldDetector.detect(frameGrids: frameGrids, anchors: frames, frameCount: frameGrids.count)
+        // Seed hold spans by adaptive detection around the DP anchors. Best-effort seed for
+        // the timeline editor; the user hand-tunes. fps drives the boundary detector's
+        // min-hold (seconds × fps), so pass the authoritative fps through.
+        let marks = HoldDetector.detect(frameGrids: frameGrids, anchors: frames, frameCount: frameGrids.count, fps: fps)
         return (analysis, marks)
     }
 }

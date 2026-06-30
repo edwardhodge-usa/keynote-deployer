@@ -234,3 +234,12 @@ Relevant file paths:
 - Validity oracle (existing): `/Users/EdwardHodge_1/Code/keynote-deployer/swift-app/Sources/Services/SlideMarkLogic.swift` (`isValid`)
 
 One load-bearing constraint I verified in source: `VideoTimestampDeriver.derive` already has `fps` in scope and currently calls `HoldDetector.detect(frameGrids:anchors:frameCount:)` with no fps — adding a defaulted `fps:` param and passing the real `fps` at that one call site is the entire plumbing change. The current `SlideMarkLogic.isValid` requires `marks[i-1].holdEnd < marks[i].holdStart` (strictly increasing, frame-distinct) and `holdEnd < frameCount`, which the final normalization pass must guarantee.
+---
+## As-built notes (2026-06-29)
+Rewrote HoldDetector as the orchestrator (FrameSignal→BoundaryDetector→RestSelector). `detectDetailed`
+returns marks + collided/lowConfidence flags; `detect()` keeps the entry shape (+fps default).
+Go = last span starting in [anchor, nextAnchor); Rest = RestSelector over the hold; first slide gets a
+fade-in-aware Rest, last slide holdEnd = frameCount-1. Review-driven fixes: ROOM-RESERVING normalization
+(one mark per anchor for all n≤bound — fixes the tail-cluster count-loss the old code had), distance-based
+low-confidence, bound-horizon signal computation. 8 tests incl. count-preservation + Rest-not-in-transition.
+126/126 green. VideoTimestampDeriver passes the real fps.

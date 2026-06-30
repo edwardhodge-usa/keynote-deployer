@@ -1,86 +1,136 @@
 import Foundation
 
-/// Seeds per-slide hold spans from the stills DP-match anchors + forward motion.
-/// Pure over the same 32×18 RGB grids the encoder's `sampleGrids` produces, so it's
-/// unit-testable offline. Best-effort: the result is a SEED the user hand-tunes on
-/// the timeline.
+/// One slide's seed plus the diagnostic flags the harness (section 01) surfaces.
+struct HoldDetection: Sendable, Equatable {
+    /// One mark per slide. Count is PRESERVED whenever the frames allow (anchors.count ≤
+    /// frameCount) — even for duplicate / tightly-clustered anchors; a slide is dropped only
+    /// in the genuinely over-packed case (more distinct anchors than frames).
+    let marks: [SlideMark]
+    /// Parallel to `marks`: this slide shared a hold with no detected boundary to its
+    /// neighbour (a deterministic midpoint split was used).
+    let collidedWithPrevious: [Bool]
+    /// Parallel to `marks`: the anchor fell INSIDE a detected transition (a wildly-wrong
+    /// StillsMatch anchor) — a signal that StillsMatch, not the detector, is the suspect.
+    let lowConfidenceMatch: [Bool]
+}
+
+/// Seeds per-slide Rest/Go marks by orchestrating the adaptive detection layers:
+/// `FrameSignal` (multi-channel diff + variance) → `BoundaryDetector` (transition spans) →
+/// `RestSelector` (settled+sharp Rest within each hold).
 ///
-/// Design (learned from the real fade-heavy deck): the DP **anchor** is the frame a
-/// slide's still matched — a reliably *settled* frame, so it is taken verbatim as
-/// `holdStart` (the Rest point). The Rest must never be guessed by expanding a
-/// low-motion run backward — on a deck whose transitions are cross-fades on a dark
-/// background, per-frame motion stays below any threshold, so a backward expansion
-/// runs into the *previous* transition and Rest lands mid-fade (the exact bug this
-/// feature exists to kill). `holdEnd` (Go) is found by expanding FORWARD from the
-/// anchor to where motion begins; when no motion is detectable before the next slide
-/// (a fade), it falls back to a default transition window so the timeline still shows
-/// an editable green transition band instead of a 1-frame sliver.
+/// The stills/anchor count is the slide-count AUTHORITY: this emits exactly ONE mark per
+/// anchor and never silently drops a slide (the old dedup + overlap-drop did). Anchors tell
+/// WHICH slide; the detected spans tell WHERE the boundaries are. Pure over `[[Double]]`
+/// grids; same `detect(...) → [SlideMark]` entry shape so `VideoTimestampDeriver` and the
+/// timeline editor are unchanged.
 enum HoldDetector {
 
-    /// Mean absolute per-component diff between two grids of equal length.
-    static func diff(_ a: [Double], _ b: [Double]) -> Double {
-        guard a.count == b.count, !a.isEmpty else { return 0 }
-        var sum = 0.0
-        for i in 0..<a.count { sum += abs(a[i] - b[i]) }
-        return sum / Double(a.count)
-    }
-
-    /// - Parameters:
-    ///   - anchors: DP-matched settled frame per slide (strictly increasing).
-    ///   - motionThreshold: per-frame grid diff above which a frame counts as "moving".
-    ///   - defaultTransition: fallback transition length (frames) when a fade can't be
-    ///     detected — the green band before the next slide's Rest.
+    /// Primary entry (unchanged shape; `fps` added with a default for source compatibility).
     static func detect(frameGrids: [[Double]],
                        anchors: [Int],
                        frameCount: Int,
-                       motionThreshold: Double = 6.0,
-                       defaultTransition: Int = 15) -> [SlideMark] {
-        guard !anchors.isEmpty, frameCount > 0 else { return [] }
+                       fps: Double = 30) -> [SlideMark] {
+        detectDetailed(frameGrids: frameGrids, anchors: anchors, frameCount: frameCount, fps: fps).marks
+    }
 
-        // Deduplicate (and sort) so two stills matched to the same frame → one slide.
-        var deduped: [Int] = []
-        for v in anchors.sorted() { if deduped.last != v { deduped.append(v) } }
+    /// Detailed entry — marks + the per-slide diagnostic flags the harness reads.
+    static func detectDetailed(frameGrids: [[Double]],
+                               anchors: [Int],
+                               frameCount: Int,
+                               fps: Double = 30) -> HoldDetection {
+        guard !anchors.isEmpty, frameCount > 0 else {
+            return HoldDetection(marks: [], collidedWithPrevious: [], lowConfidenceMatch: [])
+        }
+        let bound = Swift.min(frameCount, frameGrids.count)
+        guard bound > 0 else {
+            return HoldDetection(marks: [], collidedWithPrevious: [], lowConfidenceMatch: [])
+        }
 
-        // Shared upper bound so frameCount != frameGrids.count can't desync clamps.
-        let bound = min(frameCount, frameGrids.count)
-        guard bound > 0 else { return [] }
+        // Sort but DO NOT dedup (dedup was the count-loss bug); clamp into the frame range.
+        let sortedAnchors = anchors.sorted().map { Swift.max(0, Swift.min($0, bound - 1)) }
+        let n = sortedAnchors.count
 
-        let n = deduped.count
-        var marks: [SlideMark] = []
-        marks.reserveCapacity(n)
+        // Signal + boundary layers — built over the SAME `bound` horizon as the clamps, so a
+        // frameCount < frameGrids.count caller can't desync diff/variance lengths or let a span
+        // reference a frame ≥ bound.
+        let grids = Array(frameGrids[0..<bound])
+        let diffSignal = FrameSignal.diffSignal(grids)
+        let variances = grids.map { FrameSignal.frameVariance($0) }
+        let spans = BoundaryDetector.transitions(diffSignal: diffSignal, variances: variances, fps: fps)
+        // Distance (frames) beyond which an anchor is "far" from its assigned hold → a
+        // wildly-wrong StillsMatch anchor (a StillsMatch suspect, not a detector fault).
+        let farThreshold = Int(1.5 * fps)
+
+        // Assign exactly one (Rest, Go) per anchor.
+        var rawStart = [Int](), rawEnd = [Int]()
+        var collided = [Bool](repeating: false, count: n)
+        var lowConf = [Bool](repeating: false, count: n)
+        var holdLo = 0   // the earliest frame this slide's hold may begin (after the prev transition)
+
         for i in 0..<n {
-            let hs = max(0, min(deduped[i], bound - 1))          // Rest = the anchor, verbatim
-            let nextA = (i < n - 1) ? deduped[i + 1] : bound      // exclusive upper limit
-            let lastBefore = min(bound - 1, nextA - 1)            // last frame we may use for Go
-            if lastBefore <= hs {
-                marks.append(SlideMark(holdStart: hs, holdEnd: hs)) // no room: zero-length hold
-                continue
-            }
-            // Forward-expand from the anchor through the static hold until motion starts.
-            var e = hs
-            while e < lastBefore, diff(frameGrids[e], frameGrids[e + 1]) < motionThreshold { e += 1 }
-            var he: Int
-            if e >= lastBefore {
-                // No motion found before the next slide (a fade) → default transition band.
-                he = max(hs, lastBefore - defaultTransition)
+            let a = sortedAnchors[i]
+            let nextAnchor = i < n - 1 ? sortedAnchors[i + 1] : bound
+
+            // Outgoing transition = the LAST span starting in [a, nextAnchor) — the boundary
+            // nearest the NEXT slide, so an earlier within-slide build doesn't cut Go short.
+            let goSpan = spans.last { $0.start >= a && $0.start < nextAnchor }
+
+            var holdEnd: Int
+            var nextHoldStart: Int
+            if i == n - 1 {
+                holdEnd = bound - 1          // last slide extends to video end (no following transition)
+                nextHoldStart = bound
+            } else if let s = goSpan {
+                holdEnd = s.start
+                nextHoldStart = s.end
             } else {
-                he = e                                            // motion onset = Go
+                // No detected boundary between this anchor and the next: two anchors share a hold
+                // (or an undetected boundary). Split deterministically at the midpoint; flag it.
+                let mid = (a + nextAnchor) / 2
+                holdEnd = Swift.max(a, Swift.min(mid, nextAnchor - 1))
+                nextHoldStart = Swift.min(nextAnchor, holdEnd + 1)
+                collided[i] = true
             }
-            he = max(hs, min(he, lastBefore))
-            marks.append(SlideMark(holdStart: hs, holdEnd: he))
+            holdEnd = Swift.max(holdLo, Swift.min(holdEnd, bound - 1))
+
+            // Rest = settled+sharp frame in [holdLo, holdEnd] (handles a slide-0 fade-in: the
+            // calm frame after the opening fade, not frame 0). Clamp the range into the grids.
+            let lo = Swift.max(0, Swift.min(holdLo, holdEnd))
+            var rest = RestSelector.restFrame(in: lo..<(holdEnd + 1),
+                                              diffSignal: diffSignal, frameGrids: grids, margin: 1)
+            rest = Swift.max(lo, Swift.min(rest, holdEnd))
+            rawStart.append(rest); rawEnd.append(holdEnd)
+
+            // Low-confidence (StillsMatch suspect): the anchor sits INSIDE a transition span, OR
+            // it is far from its assigned hold region [lo, holdEnd].
+            let insideSpan = spans.contains { $0.start < a && a < $0.end }
+            let distance = a < lo ? lo - a : (a > holdEnd ? a - holdEnd : 0)
+            if insideSpan || distance > farThreshold { lowConf[i] = true }
+
+            holdLo = Swift.max(holdLo, Swift.min(nextHoldStart, bound - 1))
         }
 
-        // anchors are strictly increasing so holdStart is too, and each holdEnd < next
-        // holdStart by construction. The only exception is the impossible over-packed
-        // case (more distinct anchors than frames, so several clamp to bound-1): drop
-        // any mark that can't fit without overlapping its predecessor, guaranteeing a
-        // strictly-increasing, valid result for ALL inputs.
-        var result: [SlideMark] = []
-        for mark in marks {
-            if result.isEmpty || mark.holdStart > result.last!.holdEnd {
-                result.append(mark)
-            }
+        // Validity normalization → strictly increasing, frame-distinct, in range
+        // (`SlideMarkLogic.isValid`). ROOM-RESERVING: slide i's holdStart is capped at
+        // `bound - (n - i)` so the remaining `n - i` slides always have distinct frames left —
+        // this guarantees ONE mark per slide for every n ≤ bound (including duplicate / clustered
+        // anchors; holdStart may legally sit below the anchor). Only n > bound (impossible from
+        // strictly-increasing StillsMatch anchors) drops the unfittable tail.
+        var marks: [SlideMark] = []
+        var keptCollided: [Bool] = [], keptLowConf: [Bool] = []
+        var prevEnd = -1
+        for i in 0..<n {
+            let maxStart = bound - (n - i)          // leave room for slides i..n-1
+            var hs = Swift.max(rawStart[i], prevEnd + 1)
+            if maxStart >= 0 { hs = Swift.min(hs, maxStart) }
+            if hs > bound - 1 || hs <= prevEnd { continue }   // truly over-packed (n > bound)
+            // Cap holdEnd so the remaining slides still fit (he ≤ bound - (n - i)).
+            let heCap = Swift.max(hs, bound - (n - i))
+            let he = Swift.max(hs, Swift.min(rawEnd[i], heCap))
+            marks.append(SlideMark(holdStart: hs, holdEnd: he))
+            keptCollided.append(collided[i]); keptLowConf.append(lowConf[i])
+            prevEnd = he
         }
-        return result
+        return HoldDetection(marks: marks, collidedWithPrevious: keptCollided, lowConfidenceMatch: keptLowConf)
     }
 }

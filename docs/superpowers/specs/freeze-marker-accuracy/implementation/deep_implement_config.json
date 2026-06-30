@@ -36,6 +36,10 @@
     "section-05-rest-selector": {
       "status": "complete",
       "commit_hash": "360cc4e"
+    },
+    "section-06-boundary-detector": {
+      "status": "complete",
+      "commit_hash": "838c953"
     }
   },
   "pre_commit": {
