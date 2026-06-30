@@ -16,7 +16,12 @@
     "section-07-holddetector-rewrite",
     "section-08-remeasure-and-validate"
   ],
-  "sections_state": {},
+  "sections_state": {
+    "section-01-harness-and-fixtures": {
+      "status": "complete",
+      "commit_hash": "d6256a7"
+    }
+  },
   "pre_commit": {
     "present": false,
     "type": "none",

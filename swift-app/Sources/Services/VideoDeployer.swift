@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Orchestrates the Swift video-deploy pipeline: probe → derive → encode →
 /// generate `index.html` → deploy to Vercel. Mirrors the Electron `deploy-video`
@@ -94,9 +95,18 @@ enum VideoDeployer {
         }
         step4.detail = url; step4.status = .completed; onProgress(step4)
 
+        // Report the AUTHORITATIVE slide count (analysis.slideCount == stills count),
+        // not marks.count. With the rewritten detector these always agree; a divergence
+        // is a regression signal, so record it (non-fatal — the deploy still succeeds)
+        // rather than silently shipping a wrong count.
+        let countDiverged = marks.count != analysis.slideCount
+        if countDiverged {
+            Logger(subsystem: "com.imaginelabstudios.keynote-deployer", category: "VideoDeployer")
+                .warning("mark/slide count divergence: marks=\(marks.count) slides=\(analysis.slideCount)")
+        }
         return VideoDeployResult(url: url, projectName: request.projectName, title: request.title,
-                                 slideCount: marks.count, width: analysis.width, height: analysis.height,
-                                 folderPath: request.videoPath)
+                                 slideCount: analysis.slideCount, width: analysis.width, height: analysis.height,
+                                 folderPath: request.videoPath, countDiverged: countDiverged)
     }
 
     // MARK: - Helpers
@@ -185,6 +195,10 @@ struct VideoDeployResult: Sendable {
     /// The SOURCE video path (not the deleted temp dir) — the View persists this
     /// as `HistoryEntry.folderPath`.
     let folderPath: String
+    /// True when the produced marks count != the authoritative slide count. A
+    /// regression signal (should never be true with the rewritten detector); the
+    /// reported `slideCount` is always the authoritative count regardless.
+    let countDiverged: Bool
 }
 
 /// User-facing, actionable orchestration errors (encoder/deriver/Vercel errors

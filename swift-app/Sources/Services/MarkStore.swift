@@ -10,12 +10,23 @@ import Foundation
 enum MarkStore {
     private static let fileName = "timeline-marks.json"
 
-    /// Identifies a specific deck export. Same bytes + same decoded geometry → match.
-    static func fingerprint(path: String, frameCount: Int, fps: Double) -> String {
+    /// The seed-algorithm version. **Bump this whenever the seed algorithm changes**
+    /// so a deck previously hand-tuned under an OLD algorithm auto-reseeds with the
+    /// new (better) seed instead of silently loading stale marks. The old edits stay
+    /// on disk under their old key (preserved, just not shown). v1 = the original
+    /// fixed-threshold seed; v2 = the adaptive seed (sections 03–07).
+    static let algorithmVersion = 2
+
+    /// Identifies a specific deck export AT a specific algorithm version. Same bytes +
+    /// same decoded geometry + same algorithm → match. A different `algorithmVersion`
+    /// yields a different key, so a new algorithm always re-seeds (it never matches the
+    /// marks an older algorithm saved). This is the fix for MarkStore shadowing — the
+    /// prime suspect behind the "wrong count / less accurate since our changes" report.
+    static func fingerprint(path: String, frameCount: Int, fps: Double, algorithmVersion: Int) -> String {
         let attrs = try? FileManager.default.attributesOfItem(atPath: path)
         let size = (attrs?[.size] as? Int) ?? 0
         let fpsKey = Int((fps * 1000).rounded())
-        return "\(frameCount)-\(fpsKey)-\(size)"
+        return "v\(algorithmVersion)-\(frameCount)-\(fpsKey)-\(size)"
     }
 
     private static func storeURL() -> URL? {

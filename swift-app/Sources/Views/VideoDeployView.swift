@@ -552,7 +552,7 @@ struct VideoDeployView: View {
                 await MainActor.run {
                     analysis = a.analysis
                     // Reuse saved edits for this exact deck (same frames+fps+size); else seed.
-                    let fp = MarkStore.fingerprint(path: request.videoPath, frameCount: a.analysis.frameCount, fps: a.analysis.fps)
+                    let fp = MarkStore.fingerprint(path: request.videoPath, frameCount: a.analysis.frameCount, fps: a.analysis.fps, algorithmVersion: MarkStore.algorithmVersion)
                     markFingerprint = fp
                     if let saved = MarkStore.load(fp), SlideMarkLogic.isValid(saved, frameCount: a.analysis.frameCount) {
                         marks = saved

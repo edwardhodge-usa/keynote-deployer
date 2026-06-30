@@ -125,12 +125,31 @@ struct VideoDeployerTests {
         #expect(result.url == "https://resolved-my-deck.vercel.app")
         #expect(result.projectName == "my-deck")
         #expect(result.title == "My Deck")
-        #expect(result.slideCount == 2)               // == seedMarks.count
+        #expect(result.slideCount == 2)               // == analysis.slideCount (authority)
+        #expect(result.countDiverged == false)        // marks and slides agree on a normal run
         #expect(result.width == 1920 && result.height == 1080) // probed dims (for the embed ratio)
         #expect(result.folderPath == Self.videoURL.path) // SOURCE video path, not temp dir
 
         // Exactly 4 distinct steps reached .completed (ids 1–4).
         #expect(completed.ids == [1, 2, 3, 4])
+    }
+
+    @Test("deploy reports analysis.slideCount (authority), not marks.count, and flags divergence")
+    func deploy_reportsAuthoritativeCount() async throws {
+        let enc = Self.makeStub()
+        let seams = VideoDeployerSeams(encoder: enc) { _, name, _, _ in "https://\(name).vercel.app" }
+        // analysis claims 5 slides, but we hand deploy only 4 (valid, non-empty) marks → divergence.
+        let analysis = VideoAnalysis(
+            frames: [0, 10, 20, 30, 40],
+            timestamps: [0, 0.333, 0.667, 1.0, 1.333],
+            slideCount: 5, width: 1920, height: 1080, fps: 30, frameCount: 100)
+        let marks = [SlideMark(holdStart: 0, holdEnd: 5), SlideMark(holdStart: 10, holdEnd: 15),
+                     SlideMark(holdStart: 20, holdEnd: 25), SlideMark(holdStart: 30, holdEnd: 35)]
+        let result = try await VideoDeployer.deploy(
+            Self.request(), analysis: analysis, marks: marks,
+            settings: Self.settings(), seams: seams, onProgress: { _ in })
+        #expect(result.slideCount == 5)        // the authority, NOT marks.count (4)
+        #expect(result.countDiverged == true)  // divergence recorded (non-fatal)
     }
 
     @Test("missing vercelToken throws BEFORE the deploy seam is called")
@@ -270,7 +289,7 @@ struct VideoDeployerTests {
         #expect(VideoDeployer.viewerSpans(marks: marks, fps: 30) == [[0.0, 0.1], [0.2, 0.3]])
     }
 
-    @Test("analyze returns marks; deploy honors them and reports marks.count")
+    @Test("analyze returns marks; deploy honors edited marks but reports analysis.slideCount (authority)")
     func analyzeThenDeployUsesMarks() async throws {
         let encoder = StubEncoder(
             videoURL: Self.videoURL,
@@ -291,7 +310,10 @@ struct VideoDeployerTests {
         var settings = AppSettings.default; settings.vercelToken = "tok"
         let result = try await VideoDeployer.deploy(request, analysis: analysis, marks: edited, settings: settings, seams: seams) { _ in }
         #expect(flag.called)
-        #expect(result.slideCount == 3)
+        // Section 02: deploy reports the AUTHORITATIVE slide count (analysis.slideCount == 2),
+        // not the edited marks count (3); the marks/slides divergence is flagged (non-fatal).
+        #expect(result.slideCount == 2)
+        #expect(result.countDiverged == true)
     }
 }
 

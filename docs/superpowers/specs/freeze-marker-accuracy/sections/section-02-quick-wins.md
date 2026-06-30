@@ -204,3 +204,13 @@ Load-bearing signature facts the implementer needs (verified against current sou
 - `MarkStore.fingerprint(path: String, frameCount: Int, fps: Double) -> String` → becomes `(path:frameCount:fps:algorithmVersion:)`.
 - `VideoDeployer.deploy(_ request:analysis:marks:settings:seams:onProgress:)` returns `VideoDeployResult`; the buggy field is `slideCount: marks.count` at ~line 98. `VideoDeployResult.slideCount` is a `let Int` (struct at ~line 176).
 - `deploy` guards `!marks.isEmpty` and `SlideMarkLogic.isValid(marks, frameCount:)` before any work, and requires `!settings.vercelToken.isEmpty` before Step 4 — fake-seam tests must satisfy all three.
+---
+
+## As-built notes (2026-06-29)
+Implemented as planned. `MarkStore.algorithmVersion = 2` folded into the fingerprint key
+(`v2-<frames>-<fps>-<size>`); `VideoDeployView` call site updated; `VideoDeployer.deploy` now
+reports `analysis.slideCount` + a `countDiverged` flag on `VideoDeployResult` + an os.Logger
+warning. New `Tests/MarkStoreTests.swift` (3) + a VideoDeployer divergence test; one pre-existing
+test updated to the new authority contract. 97/97 green. The divergence flag is a future-regression
+guard — per the section-01 finding, count == slideCount is structurally guaranteed today, so the
+algorithmVersion re-seed (not a count fix) is what actually resolves Edward's "wrong count" report.
