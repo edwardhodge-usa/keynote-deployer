@@ -14,6 +14,27 @@ actor VercelAPI {
         ["Authorization": "Bearer \(token)"]
     }
 
+    /// Probe a deployed deck's security state by reading its response headers: a
+    /// "Secure Embed" deploy serves a `Content-Security-Policy: frame-ancestors …`
+    /// header (locks embedding to the portal domains). Returns true = secure,
+    /// false = open (reachable, no such header), nil = unknown (unreachable/error).
+    /// No auth — hits the public deployment URL.
+    static func probeSecure(url raw: String) async -> Bool? {
+        var s = raw
+        if !s.hasPrefix("http") { s = "https://\(s)" }
+        guard let url = URL(string: s) else { return nil }
+        var req = URLRequest(url: url, timeoutInterval: 12)
+        req.httpMethod = "HEAD"
+        do {
+            let (_, resp) = try await URLSession.shared.data(for: req)
+            guard let http = resp as? HTTPURLResponse else { return nil }
+            let csp = (http.value(forHTTPHeaderField: "Content-Security-Policy") ?? "").lowercased()
+            return csp.contains("frame-ancestors")
+        } catch {
+            return nil
+        }
+    }
+
     /// Fetch or create a Vercel project by name.
     func ensureProject(name: String) async throws -> VercelProject {
         // Try GET first

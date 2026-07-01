@@ -57,4 +57,72 @@ enum MarkStore {
             try? data.write(to: url, options: .atomic)
         }
     }
+
+    // MARK: - Named reuse (survives a re-export)
+
+    /// A saved timeline keyed by DECK IDENTITY (not the exact file). Carries fps +
+    /// frameCount so the marks (frame indices) can be re-mapped by TIME onto a
+    /// re-exported deck of a different length/framerate.
+    struct NamedMarks: Codable, Sendable, Equatable {
+        let marks: [SlideMark]
+        let fps: Double
+        let frameCount: Int
+        let savedAt: Double
+    }
+
+    private static let namedFileName = "timeline-marks-by-name.json"
+
+    /// Normalize a deck's project name to a stable IDENTITY that survives re-exports:
+    /// drop a trailing EXPLICIT version token (`-v3`, `-v16`) only — years and other
+    /// numbers are kept so different decks stay distinct. So `ilsquals-2026-v3` and
+    /// `ilsquals-2026-v4` share identity `ilsquals-2026`, while `nash-quals-2026` is
+    /// left untouched.
+    static func deckIdentity(_ projectName: String) -> String {
+        var s = projectName.lowercased()
+        while let r = s.range(of: "-v\\d+$", options: .regularExpression) { s.removeSubrange(r) }
+        let trimmed = s.trimmingCharacters(in: CharacterSet(charactersIn: "-_ "))
+        return trimmed.isEmpty ? projectName.lowercased() : trimmed
+    }
+
+    private static func namedURL() -> URL? { storeURL()?.deletingLastPathComponent().appendingPathComponent(namedFileName) }
+
+    private static func loadAllNamed() -> [String: NamedMarks] {
+        guard let url = namedURL(), let data = try? Data(contentsOf: url),
+              let map = try? JSONDecoder().decode([String: NamedMarks].self, from: data) else { return [:] }
+        return map
+    }
+
+    /// Most-recent saved timeline for a deck identity, or nil.
+    static func loadNamed(_ identity: String) -> NamedMarks? { loadAllNamed()[identity] }
+
+    /// Save the edited timeline under a deck identity (in addition to the exact
+    /// fingerprint save), so a future re-export of the same deck can reuse it.
+    static func saveNamed(_ marks: [SlideMark], identity: String, fps: Double, frameCount: Int, savedAt: Double) {
+        guard let url = namedURL() else { return }
+        var map = loadAllNamed()
+        map[identity] = NamedMarks(marks: marks, fps: fps, frameCount: frameCount, savedAt: savedAt)
+        if let data = try? JSONEncoder().encode(map) { try? data.write(to: url, options: .atomic) }
+    }
+
+    /// Re-map saved marks (old frame indices) onto a new deck by TIME: frame→seconds
+    /// via the saved fps, seconds→frame via the new fps, clamped into the new range and
+    /// normalized to a strictly-increasing, valid `[SlideMark]` (drops any that can't
+    /// fit without overlapping — so the result always satisfies SlideMarkLogic.isValid
+    /// for a non-empty input with toFrameCount ≥ marks.count). Pure.
+    static func remap(_ named: NamedMarks, toFps: Double, toFrameCount: Int) -> [SlideMark] {
+        guard toFps > 0, named.fps > 0, toFrameCount > 0, !named.marks.isEmpty else { return [] }
+        let hi = toFrameCount - 1
+        func conv(_ f: Int) -> Int { Swift.max(0, Swift.min(Int(((Double(f) / named.fps) * toFps).rounded()), hi)) }
+        var out: [SlideMark] = []
+        var prevEnd = -1
+        for m in named.marks {
+            var hs = Swift.max(conv(m.holdStart), prevEnd + 1)
+            if hs > hi { break }                          // no room left → stop (over-packed)
+            let he = Swift.max(hs, Swift.min(conv(m.holdEnd), hi))
+            hs = Swift.min(hs, he)
+            out.append(SlideMark(holdStart: hs, holdEnd: he))
+            prevEnd = he
+        }
+        return out
+    }
 }

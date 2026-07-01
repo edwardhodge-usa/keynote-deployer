@@ -20,6 +20,8 @@ struct ProjectsView: View {
     @State private var confirmingDelete: String?
     @State private var deletingId: String?
     @State private var copiedId: String?
+    /// Per-project security state (true=secure CSP, false=open, absent=probing/unknown).
+    @State private var secure: [String: Bool] = [:]
     /// When on, list ALL Vercel projects (not just ones in local deploy history) so
     /// deployments made elsewhere can still be seen + deleted.
     @AppStorage("projectsShowAll") private var showAll = false
@@ -88,6 +90,7 @@ struct ProjectsView: View {
             ForEach(sortedProjects, id: \.id) { (project: VercelProject) in
                 ProjectRow(
                     project: project,
+                    isSecure: secure[project.id],
                     isConfirmingDelete: confirmingDelete == project.id,
                     isDeleting: deletingId == project.id,
                     copiedId: copiedId,
@@ -138,6 +141,20 @@ struct ProjectsView: View {
         }
 
         isLoading = false
+        await probeSecurity(projects)   // fill 🔒/🔓 badges in the background
+    }
+
+    /// Concurrently probe each deck's live CSP header → security badge state.
+    private func probeSecurity(_ items: [VercelProject]) async {
+        await withTaskGroup(of: (String, Bool?).self) { group in
+            for p in items {
+                guard let u = p.productionUrl, !u.isEmpty else { continue }
+                group.addTask { (p.id, await VercelAPI.probeSecure(url: u)) }
+            }
+            for await (id, val) in group where val != nil {
+                secure[id] = val
+            }
+        }
     }
 
     /// Route "Update" to the right deploy flow: video decks (history folderPath is a
@@ -194,6 +211,8 @@ enum ProjectSort: String, CaseIterable, Identifiable {
 
 private struct ProjectRow: View {
     let project: VercelProject
+    /// true = Secure Embed (frame-ancestors CSP), false = open, nil = probing/unknown.
+    var isSecure: Bool? = nil
     let isConfirmingDelete: Bool
     let isDeleting: Bool
     let copiedId: String?
@@ -213,6 +232,13 @@ private struct ProjectRow: View {
                             .frame(width: 8, height: 8)
                         Text(project.name)
                             .font(.body.weight(.medium))
+                        if let isSecure {
+                            Image(systemName: isSecure ? "lock.fill" : "lock.open.fill")
+                                .font(.caption)
+                                .foregroundStyle(isSecure ? .green : .orange)
+                                .help(isSecure ? "Secure Embed — restricted to portal domains (frame-ancestors CSP)"
+                                                : "Open — embeddable / downloadable anywhere")
+                        }
                         if let deploy = project.latestDeployment {
                             Text(formatDate(deploy.createdAt))
                                 .font(.caption)

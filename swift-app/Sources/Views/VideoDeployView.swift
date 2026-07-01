@@ -116,6 +116,9 @@ struct VideoDeployView: View {
     @State private var marks: [SlideMark] = []
     @State private var currentRequest: VideoDeployRequest?
     @State private var markFingerprint = ""   // identifies this deck for saved-mark reuse
+    @State private var seedMarks: [SlideMark] = []   // the fresh auto-seed (to revert to)
+    @State private var reuseIdentity = ""            // deck identity for re-export reuse
+    @State private var didReuse = false              // showing a re-exported prior timeline
     /// The preset (from a Projects "Update") is one-shot: once applied to a video,
     /// a subsequent video in the same session must NOT inherit it (it would deploy
     /// over the wrong Vercel project). `presetProjectName` is frozen at construction,
@@ -288,13 +291,28 @@ struct VideoDeployView: View {
     @ViewBuilder
     private var reviewMarkersPhase: some View {
         if let player, let analysis {
-            TimelineEditorView(
-                player: player,
-                frameCount: analysis.frameCount,
-                fps: analysis.fps,
-                initialMarks: marks,
-                onConfirm: { edited in startDeploy(marks: edited) },
-                onBack: { phase = .confirm })
+            VStack(spacing: 0) {
+                if didReuse {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.uturn.backward.circle.fill").foregroundStyle(.orange)
+                        Text("Reused your previous timeline for this deck (re-mapped to this export).")
+                            .font(.callout)
+                        Spacer()
+                        Button("Use fresh seed") { marks = seedMarks; didReuse = false }
+                            .controlSize(.small)
+                    }
+                    .padding(10)
+                    .background(Color.orange.opacity(0.12))
+                }
+                TimelineEditorView(
+                    player: player,
+                    frameCount: analysis.frameCount,
+                    fps: analysis.fps,
+                    initialMarks: marks,
+                    onConfirm: { edited in startDeploy(marks: edited) },
+                    onBack: { phase = .confirm })
+                    .id(didReuse)   // recreate the editor when swapping reused↔seed marks
+            }
         } else {
             ProgressView()
         }
@@ -551,13 +569,23 @@ struct VideoDeployView: View {
                     onProgress: { step in Task { @MainActor in updateStep(step) } })
                 await MainActor.run {
                     analysis = a.analysis
-                    // Reuse saved edits for this exact deck (same frames+fps+size); else seed.
+                    seedMarks = a.marks
+                    reuseIdentity = MarkStore.deckIdentity(projectName)
+                    // 1. Exact-file match (same frames+fps+size) → auto-load silently.
+                    // 2. Else a saved timeline for the same deck IDENTITY (a prior export) →
+                    //    re-map it by time onto this deck and offer it (banner) so a re-export
+                    //    keeps your cleanup. 3. Else the fresh seed.
                     let fp = MarkStore.fingerprint(path: request.videoPath, frameCount: a.analysis.frameCount, fps: a.analysis.fps, algorithmVersion: MarkStore.algorithmVersion)
                     markFingerprint = fp
                     if let saved = MarkStore.load(fp), SlideMarkLogic.isValid(saved, frameCount: a.analysis.frameCount) {
-                        marks = saved
+                        marks = saved; didReuse = false
+                    } else if let named = MarkStore.loadNamed(reuseIdentity) {
+                        let remapped = MarkStore.remap(named, toFps: a.analysis.fps, toFrameCount: a.analysis.frameCount)
+                        if !remapped.isEmpty, SlideMarkLogic.isValid(remapped, frameCount: a.analysis.frameCount) {
+                            marks = remapped; didReuse = true
+                        } else { marks = a.marks; didReuse = false }
                     } else {
-                        marks = a.marks
+                        marks = a.marks; didReuse = false
                     }
                     phase = .reviewMarkers
                 }
@@ -573,7 +601,11 @@ struct VideoDeployView: View {
         guard let request = currentRequest, let analysis else { return }
         let settings = (try? FileOperations.loadSettings()) ?? .default
         marks = edited                       // persist edits for cancel→reviewMarkers
-        if !markFingerprint.isEmpty { MarkStore.save(edited, for: markFingerprint) }  // reuse next time
+        if !markFingerprint.isEmpty { MarkStore.save(edited, for: markFingerprint) }  // exact-file reuse
+        if !reuseIdentity.isEmpty {          // deck-identity reuse (survives a re-export)
+            MarkStore.saveNamed(edited, identity: reuseIdentity, fps: analysis.fps,
+                                frameCount: analysis.frameCount, savedAt: Date().timeIntervalSince1970)
+        }
         phase = .deploying
         errorMessage = ""
         deployTask = Task {
