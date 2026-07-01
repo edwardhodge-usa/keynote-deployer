@@ -7,6 +7,13 @@ struct ProjectsView: View {
 
     @Query(sort: \HistoryEntry.date, order: .reverse) private var historyEntries: [HistoryEntry]
 
+    /// Known NON-deck Vercel projects to hide by default (Vercel has no folders, so the
+    /// team list mixes these in). Extend as new infra projects appear, or set a project
+    /// name prefix in Settings for strict deck-only filtering instead.
+    private static let infraProjects: Set<String> = [
+        "fleet-dashboard", "cloud", "ils-portal-publish", "imaginelab-portal"
+    ]
+
     @State private var projects: [VercelProject] = []
     @State private var isLoading = true
     @State private var errorMessage = ""
@@ -108,22 +115,22 @@ struct ProjectsView: View {
 
             let api = VercelAPI(token: settings.vercelToken, teamId: settings.vercelTeamId)
 
-            // Vercel has no per-project folders; the whole team's projects come back in
-            // one list (decks mixed with fleet-dashboard / cloud / portal). Scope the view
-            // to DECKS only. A deck is identified two ways, unioned so nothing real is missed:
-            //   1. Name prefix (the "container") — set `projectNamePrefix` in Settings, e.g.
-            //      "ilsdeck-"; every new deploy is prefixed, so it works across machines.
-            //   2. Local deploy history — covers legacy decks deployed before a prefix was set.
-            // "Show all" bypasses both to list every team project.
+            // Vercel has no per-project folders; the whole team's projects come back in one
+            // list (decks mixed with fleet-dashboard / cloud / portal). Scope the view to DECKS:
+            //   • "Show all" ON  → every team project (to see/delete non-decks).
+            //   • prefix SET     → STRICT container mode: only projects whose name starts with
+            //     the Settings prefix (e.g. "ilsdeck-"). Robust once you adopt a prefix.
+            //   • prefix EMPTY   → default: every project EXCEPT the known non-deck infra below.
+            //     (Local deploy history is unreliable here — it's empty on this machine — so we
+            //     don't depend on it. Add any new non-deck project to `infraProjects`.)
             let prefix = settings.projectNamePrefix.trimmingCharacters(in: .whitespaces)
-            let deployed = Set(historyEntries.map(\.projectName))
             let fetched = try await api.fetchProjects(deployedNames: nil)
 
             projects = fetched
                 .filter { p in
-                    showAll
-                        || (!prefix.isEmpty && p.name.hasPrefix(prefix))
-                        || deployed.contains(p.name)
+                    if showAll { return true }
+                    if !prefix.isEmpty { return p.name.hasPrefix(prefix) }
+                    return !Self.infraProjects.contains(p.name)
                 }
                 .sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }
         } catch {
