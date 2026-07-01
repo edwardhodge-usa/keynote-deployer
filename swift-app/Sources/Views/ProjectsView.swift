@@ -16,6 +16,16 @@ struct ProjectsView: View {
     /// When on, list ALL Vercel projects (not just ones in local deploy history) so
     /// deployments made elsewhere can still be seen + deleted.
     @AppStorage("projectsShowAll") private var showAll = false
+    /// Sort order for the project list (persisted). Name = A→Z; Created/Modified = newest first.
+    @AppStorage("projectsSort") private var sortRaw = ProjectSort.modified.rawValue
+
+    private var sortedProjects: [VercelProject] {
+        switch ProjectSort(rawValue: sortRaw) ?? .modified {
+        case .name:     return projects.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case .created:  return projects.sorted { ($0.createdAt ?? 0) > ($1.createdAt ?? 0) }
+        case .modified: return projects.sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }
+        }
+    }
 
     var body: some View {
         Group {
@@ -42,6 +52,14 @@ struct ProjectsView: View {
         .navigationTitle("Projects")
         .toolbar {
             ToolbarItem(placement: .automatic) {
+                Picker("Sort", selection: $sortRaw) {
+                    ForEach(ProjectSort.allCases) { s in Text(s.label).tag(s.rawValue) }
+                }
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .help("Sort projects by name, created date, or last modified")
+            }
+            ToolbarItem(placement: .automatic) {
                 Toggle("Show all", isOn: $showAll)
                     .toggleStyle(.switch)
                     .controlSize(.small)
@@ -60,7 +78,7 @@ struct ProjectsView: View {
 
     private var projectList: some View {
         List {
-            ForEach(Array(projects), id: \.id) { (project: VercelProject) in
+            ForEach(sortedProjects, id: \.id) { (project: VercelProject) in
                 ProjectRow(
                     project: project,
                     isConfirmingDelete: confirmingDelete == project.id,
@@ -153,6 +171,19 @@ struct ProjectsView: View {
 }
 
 // MARK: - Project Row
+
+/// Project list sort order (persisted via @AppStorage as the raw value).
+enum ProjectSort: String, CaseIterable, Identifiable {
+    case name, created, modified
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .name: "Name"
+        case .created: "Date Created"
+        case .modified: "Date Modified"
+        }
+    }
+}
 
 private struct ProjectRow: View {
     let project: VercelProject
