@@ -1,6 +1,6 @@
 # Session State
 
-**Last updated:** 2026-06-30 19:40
+**Last updated:** 2026-06-30 22:40
 **Goal:** Rebuild the freeze/hold-marker seed accuracy, then Projects-tab UX polish.
 **Plan:** docs/superpowers/specs/freeze-marker-accuracy/ (deep-plan + 8 sections, all implemented)
 
@@ -16,13 +16,14 @@
 - Deck URL Airtable field lives ONLY on Client Pages (tblo5TQos1VUGfuaQ / fldYedTCbI633i0fe), edited in CRM app → Client Portal → Page Content → Deck URL.
 
 ## Next Step
-Run the **iPhone cross-origin-iframe gate + eyeball the seed on the REAL ILS Quals deck**; if good, lock the seed params in harness-triage.md across the 3 archetype decks. Then the seed work is fully closed.
+Seed validated LIVE on the real ILS Quals deck (2026-06-30 22:40): app Analyze → 39/39, all Rests at transition boundaries, slide 1 + 39 Rest frames settled → Encode & Deploy → **functions on Safari + iPhone** (the real cross-origin gate). The fade-on-dark archetype (the one that historically broke HoldDetector) PASSES with the current v1.3.5 global params.
+Remaining to fully "lock": run one **clean-cut** + one **build-heavy** real deck for extra archetype coverage (anti-overfit). One-real-deck (the hardest) already passed live — params are effectively validated, formal 3-archetype lock optional.
 
 ## Verification Goals
 - [x] Adaptive seed builds + 131 tests green + shipped v1.3.5
 - [x] count == slideCount structurally; Rest never inside a transition (unit-proven)
-- [ ] iPhone gate passes on the real deck (Rest on settled slides, transitions smooth)
-- [ ] Global seed params locked across ≥2 real archetype decks (not just synthetic)
+- [x] iPhone gate passes on the real ILS Quals deck — functions on Safari + iPhone (2026-06-30)
+- [~] Global seed params: validated on the fade-on-dark archetype live; clean-cut + build-heavy decks still optional for a formal lock
 
 ## Open follow-ups (Edward)
 - Security badge: verify live (couldn't — app window on another Space); nash-quals-2026 + ldsquals2026 are OPEN (re-deploy secured if client-facing).

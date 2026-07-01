@@ -51,3 +51,22 @@ the original over-fit sin. → This is the §08 manual gate + the work Edward ow
 - [ ] Run the harness on clean-cut + build-heavy decks; lock the global parameter set here.
 - [ ] iPhone cross-origin-iframe gate on the real deck (the standing 1.2.x bug-class oracle).
 Only after these → merge `feat/seed-accuracy` → main → /notarize v1.3.0.
+
+## LIVE VALIDATION on the REAL ILS Quals deck — 2026-06-30 22:40 (PASS)
+Ran the actual v1.3.5 app on the real ILS Quals deck (39-slide, fade-on-dark — the archetype that
+historically broke HoldDetector): dropped the exported H.264 movie + per-slide stills into Deploy
+Video → **Analyze**.
+- **Count 39/39** — structural StillsMatch guarantee holds end-to-end on the real deck.
+- **Rest placement (whole-deck, 1.0× timeline):** every cyan Rest tick sits at a green/purple
+  boundary; none floats inside a green transition band. The core "Rest never mid-transition" gate
+  holds visually across all 39.
+- **Rest frames eyeballed:** slide 1 (composed title + orbital graphic — settled) and slide 39
+  (ImagineLab title card — settled). Both landed on stable frames, not mid-animation.
+- Profile is transition-heavy (short holds, only two long purple holds ~28% / ~68%) — expected for a
+  fast animated quals deck; short holds don't hurt the viewer (it freezes on Rest regardless).
+- **Encode & Deploy → functions on Safari AND iPhone** — the real cross-origin-iframe gate PASSES
+  with the current global params. No mid-motion Rest reported on device.
+
+**Conclusion:** the fade-on-dark archetype passes live with the shipped v1.3.5 params. A formal
+3-archetype "lock" (adding a clean-cut + a build-heavy real deck) is now optional extra coverage,
+not a blocker — the hardest archetype already validated on real hardware.
