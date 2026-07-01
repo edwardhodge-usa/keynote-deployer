@@ -11,7 +11,7 @@ enum NavigationTab: String, CaseIterable, Identifiable, Sendable {
 
     var label: String {
         switch self {
-        case .deploy: "Deploy"
+        case .deploy: "Deploy HTML"
         case .video: "Deploy Video"
         case .projects: "Projects"
         case .history: "History"

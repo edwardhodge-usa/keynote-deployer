@@ -90,12 +90,24 @@ struct ProjectsView: View {
 
             let api = VercelAPI(token: settings.vercelToken, teamId: settings.vercelTeamId)
 
-            // Default: only projects deployed by Keynote Deployer (cross-referenced
-            // with local history). "Show all" passes nil to list every team project.
-            let deployedNames: Set<String>? = showAll ? nil : Set(historyEntries.map(\.projectName))
-            let fetched = try await api.fetchProjects(deployedNames: deployedNames)
+            // Vercel has no per-project folders; the whole team's projects come back in
+            // one list (decks mixed with fleet-dashboard / cloud / portal). Scope the view
+            // to DECKS only. A deck is identified two ways, unioned so nothing real is missed:
+            //   1. Name prefix (the "container") — set `projectNamePrefix` in Settings, e.g.
+            //      "ilsdeck-"; every new deploy is prefixed, so it works across machines.
+            //   2. Local deploy history — covers legacy decks deployed before a prefix was set.
+            // "Show all" bypasses both to list every team project.
+            let prefix = settings.projectNamePrefix.trimmingCharacters(in: .whitespaces)
+            let deployed = Set(historyEntries.map(\.projectName))
+            let fetched = try await api.fetchProjects(deployedNames: nil)
 
-            projects = fetched.sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }
+            projects = fetched
+                .filter { p in
+                    showAll
+                        || (!prefix.isEmpty && p.name.hasPrefix(prefix))
+                        || deployed.contains(p.name)
+                }
+                .sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }
         } catch {
             errorMessage = error.localizedDescription
         }

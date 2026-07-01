@@ -8,6 +8,7 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             SidebarView(selectedTab: $selectedTab)
+                .navigationSplitViewColumnWidth(min: 180, ideal: 180, max: 180)   // locked 180pt sidebar
         } detail: {
             switch selectedTab {
             case .deploy:
