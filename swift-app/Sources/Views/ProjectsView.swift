@@ -136,20 +136,25 @@ struct ProjectsView: View {
                     return !Self.infraProjects.contains(p.name)
                 }
                 .sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }
+            isLoading = false
+            await probeSecurity(projects, api: api)   // list shows now; badges fill in the background
         } catch {
             errorMessage = error.localizedDescription
+            isLoading = false
         }
-
-        isLoading = false
-        await probeSecurity(projects)   // fill 🔒/🔓 badges in the background
     }
 
-    /// Concurrently probe each deck's live CSP header → security badge state.
-    private func probeSecurity(_ items: [VercelProject]) async {
+    /// Concurrently probe each deck's live CSP header → security badge state. The list
+    /// endpoint doesn't return `productionUrl`, so resolve the real production alias per
+    /// project (falling back to `<name>.vercel.app`, same as Copy URL) before probing.
+    private func probeSecurity(_ items: [VercelProject], api: VercelAPI) async {
         await withTaskGroup(of: (String, Bool?).self) { group in
             for p in items {
-                guard let u = p.productionUrl, !u.isEmpty else { continue }
-                group.addTask { (p.id, await VercelAPI.probeSecure(url: u)) }
+                group.addTask {
+                    let resolved = (try? await api.resolveProductionUrl(projectId: p.id)) ?? nil
+                    let url = (resolved?.isEmpty == false) ? resolved! : "\(p.name).vercel.app"
+                    return (p.id, await VercelAPI.probeSecure(url: url))
+                }
             }
             for await (id, val) in group where val != nil {
                 secure[id] = val
