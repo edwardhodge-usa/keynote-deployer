@@ -29,9 +29,23 @@ enum MarkStore {
         return "v\(algorithmVersion)-\(frameCount)-\(fpsKey)-\(size)"
     }
 
+    /// Test seam: when set, the mark store lives HERE instead of Application Support.
+    /// `nil` in production. Lets tests isolate to a unique temp dir so they never
+    /// collide with real app data or each other, and never race on the shared file
+    /// (the cold-start `sameVersionRoundTrip` flake). `namedURL()` derives from
+    /// `storeURL()`, so it follows the override automatically. `nonisolated(unsafe)`
+    /// is safe here: it's nil in production (never mutated), and the only writer — the
+    /// `.serialized` test suite — is single-threaded by that trait.
+    nonisolated(unsafe) static var storeDirectoryOverride: URL?
+
     private static func storeURL() -> URL? {
-        guard let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return nil }
-        let appDir = dir.appendingPathComponent("keynote-deployer", isDirectory: true)
+        let appDir: URL
+        if let override = storeDirectoryOverride {
+            appDir = override
+        } else {
+            guard let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return nil }
+            appDir = dir.appendingPathComponent("keynote-deployer", isDirectory: true)
+        }
         try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
         return appDir.appendingPathComponent(fileName)
     }

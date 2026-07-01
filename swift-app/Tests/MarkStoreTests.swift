@@ -2,11 +2,18 @@ import Testing
 import Foundation
 @testable import KeynoteDeployer
 
-/// Section 02 — MarkStore algorithm versioning. Uses unique synthetic fingerprints
-/// (nonexistent paths → deterministic size 0, UUID-distinct frameCount) so the tests
-/// never collide with real app data or each other in the shared timeline-marks.json.
-@Suite("Section 02 — MarkStore versioning")
+/// Section 02 — MarkStore algorithm versioning. Each test runs against a fresh temp
+/// store dir (via `MarkStore.storeDirectoryOverride`) so it never touches real app
+/// data or races another test on the shared timeline-marks.json. `.serialized` keeps
+/// the process-global override race-free across the suite.
+@Suite("Section 02 — MarkStore versioning", .serialized)
 struct MarkStoreTests {
+
+    /// Fresh instance per test → point the store at a unique temp dir before each.
+    init() {
+        MarkStore.storeDirectoryOverride = FileManager.default.temporaryDirectory
+            .appendingPathComponent("markstore-tests-\(UUID().uuidString)", isDirectory: true)
+    }
 
     private static func uniqueFrameCount() -> Int { abs(UUID().uuidString.hashValue % 1_000_000) + 1 }
     private static let marks = [SlideMark(holdStart: 0, holdEnd: 5), SlideMark(holdStart: 10, holdEnd: 15)]
